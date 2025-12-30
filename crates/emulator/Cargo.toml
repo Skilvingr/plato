@@ -9,5 +9,6 @@ name = "plato-emulator"
 path = "src/main.rs"
 
 [dependencies]
-plato-core = { path = "../core" }
-sdl2 = "0.37.0"
+plato-core = { path = "../core", features = ["sim"] }
+plato = { path = "../plato", features = ["sim"] }
+sdl2 = "0.38.0"

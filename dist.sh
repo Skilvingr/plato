@@ -24,6 +24,7 @@ cp libs/libharfbuzz.so dist/libs/libharfbuzz.so.0
 cp libs/libgumbo.so dist/libs/libgumbo.so.1
 cp libs/libdjvulibre.so dist/libs/libdjvulibre.so.21
 cp libs/libmupdf.so dist/libs
+cp libs/libstdc++.so.6 dist/libs
 
 cp -R hyphenation-patterns dist
 cp -R keyboard-layouts dist
@@ -44,4 +45,4 @@ cp LICENSE-AGPLv3 dist
 
 patchelf --remove-rpath dist/libs/*
 
-arm-linux-gnueabihf-strip dist/plato dist/libs/*
+arm-kobov4-linux-gnueabihf-strip dist/plato dist/libs/*

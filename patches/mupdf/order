@@ -1,0 +1,9 @@
+external_fonts.patch
+encrypted_zip.patch
+no_arm_asm.patch
+honor_cflags.patch
+webp-upstream-697749.patch
+free-html-doc-fonts-on-close.patch
+relink_on_xlibs_change.patch
+visibility.patch
+css_color_names.patch

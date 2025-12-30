@@ -4,6 +4,9 @@ name = "plato"
 version = "0.9.44"
 edition = "2021"
 
+[features]
+sim = []
+
 [[bin]]
 name = "plato"
 path = "src/main.rs"

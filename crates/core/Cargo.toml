@@ -4,6 +4,9 @@ name = "plato-core"
 version = "0.9.44"
 edition = "2021"
 
+[features]
+sim = []
+
 [lib]
 crate-type = ["rlib"]
 

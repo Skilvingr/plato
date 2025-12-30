@@ -2,14 +2,10 @@
 
 [ -d build ] && rm -Rf build
 
-mkdir build
-cd build || exit 1
-
-TRIPLE=arm-linux-gnueabihf
-export CFLAGS="-O2 -mcpu=cortex-a9 -mfpu=neon"
+TRIPLE=arm-kobov4-linux-gnueabihf
+export CFLAGS="-Wall -O2 -mcpu=cortex-a9 -mfpu=neon -std=c99"
 export CXXFLAGS="$CFLAGS"
 
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CODEC=off -DBUILD_STATIC_LIBS=off -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_C_COMPILER=${TRIPLE}-gcc -DCMAKE_CXX_COMPILER=${TRIPLE}-g++ -DCMAKE_AR=${TRIPLE}-ar .. && make
+cmake -B build -S . -DCMAKE_BUILD_TYPE=None -DBUILD_CODEC=off -DBUILD_STATIC_LIBS=off -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_C_COMPILER=${TRIPLE}-gcc -DCMAKE_AR=${TRIPLE}-ar .. && cmake --build build
 
-cd .. || exit 1
 cp build/src/lib/openjp2/opj_config.h src/lib/openjp2

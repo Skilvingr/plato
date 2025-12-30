@@ -1,9 +1,9 @@
 
-# This Makefile builds a shared version of the library, 
+# This Makefile builds a shared version of the library,
 # libbz2.so.1.0.6, with soname libbz2.so.1.0,
-# at least on x86-Linux (RedHat 7.2), 
-# with gcc-2.96 20000731 (Red Hat Linux 7.1 2.96-98).  
-# Please see the README file for some important info 
+# at least on x86-Linux (RedHat 7.2),
+# with gcc-2.96 20000731 (Red Hat Linux 7.1 2.96-98).
+# Please see the README file for some important info
 # about building the library like this.
 
 # ------------------------------------------------------------------
@@ -13,7 +13,7 @@
 # bzip2/libbzip2 version 1.0.6 of 6 September 2010
 # Copyright (C) 1996-2010 Julian Seward <jseward@bzip.org>
 #
-# Please read the WARNING, DISCLAIMER and PATENTS sections in the 
+# Please read the WARNING, DISCLAIMER and PATENTS sections in the
 # README file.
 #
 # This program is released under the terms of the license contained
@@ -23,7 +23,7 @@
 
 
 SHELL=/bin/sh
-TRIPLE=arm-linux-gnueabihf
+TRIPLE=arm-kobov4-linux-gnueabihf
 CC=$(TRIPLE)-gcc
 CXX=$(TRIPLE)-g++
 AR=$(TRIPLE)-ar
@@ -46,7 +46,7 @@ all: $(OBJS)
 	ln -s libbz2.so.1.0.6 libbz2.so.1.0
 	ln -s libbz2.so.1.0.6 libbz2.so
 
-clean: 
+clean:
 	rm -f $(OBJS) bzip2.o libbz2.so.1.0.6 libbz2.so.1.0 bzip2-shared
 
 blocksort.o: blocksort.c

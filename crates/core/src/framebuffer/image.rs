@@ -1,9 +1,10 @@
-use std::fs::File;
-use std::path::Path;
-use anyhow::{Error, Context, format_err};
 use super::{Framebuffer, UpdateMode};
-use crate::color::{Color, WHITE};
+use crate::colour::{Colour, WHITE};
 use crate::geom::{Rectangle, lerp};
+use anyhow::{Context, Error, format_err};
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct Pixmap {
@@ -20,7 +21,7 @@ impl Pixmap {
             width,
             height,
             samples,
-            data: vec![WHITE.gray(); len],
+            data: vec![WHITE.grey(); len],
         }
     }
 
@@ -28,7 +29,7 @@ impl Pixmap {
         let mut data = Vec::new();
         let len = samples * (width * height) as usize;
         data.try_reserve_exact(len).ok()?;
-        data.resize(len, WHITE.gray());
+        data.resize(len, WHITE.grey());
         Some(Pixmap {
             width,
             height,
@@ -55,7 +56,7 @@ impl Pixmap {
     }
 
     pub fn from_png<P: AsRef<Path>>(path: P) -> Result<Pixmap, Error> {
-        let file = File::open(path.as_ref())?;
+        let file = BufReader::new(File::open(path.as_ref())?);
         let decoder = png::Decoder::new(file);
         let mut reader = decoder.read_info()?;
         let info = reader.info();
@@ -65,21 +66,21 @@ impl Pixmap {
     }
 
     #[inline]
-    pub fn get_pixel(&self, x: u32, y: u32) -> Color {
+    pub fn get_pixel(&self, x: u32, y: u32) -> Colour {
         if self.data.is_empty() {
             return WHITE;
         }
         let addr = self.samples * (y * self.width + x) as usize;
         if self.samples == 1 {
-            Color::Gray(self.data[addr])
+            Colour::Grey(self.data[addr])
         } else {
-            Color::from_rgb(&self.data[addr..addr+3])
+            Colour::from_rgb(&self.data[addr..addr + 3])
         }
     }
 }
 
 impl Framebuffer for Pixmap {
-    fn set_pixel(&mut self, x: u32, y: u32, color: Color) {
+    fn set_pixel(&mut self, x: u32, y: u32, color: Colour) {
         if x >= self.width || y >= self.height {
             return;
         }
@@ -88,14 +89,14 @@ impl Framebuffer for Pixmap {
         }
         let addr = self.samples * (y * self.width + x) as usize;
         if self.samples == 1 {
-            self.data[addr] = color.gray();
+            self.data[addr] = color.grey();
         } else {
             let rgb = color.rgb();
-            self.data[addr..addr+3].copy_from_slice(&rgb);
+            self.data[addr..addr + 3].copy_from_slice(&rgb);
         }
     }
 
-    fn set_blended_pixel(&mut self, x: u32, y: u32, color: Color, alpha: f32) {
+    fn set_blended_pixel(&mut self, x: u32, y: u32, color: Colour, alpha: f32) {
         if alpha >= 1.0 {
             self.set_pixel(x, y, color);
             return;
@@ -108,10 +109,10 @@ impl Framebuffer for Pixmap {
         }
         let addr = self.samples * (y * self.width + x) as usize;
         if self.samples == 1 {
-            self.data[addr] = lerp(self.data[addr] as f32, color.gray() as f32, alpha) as u8;
+            self.data[addr] = lerp(self.data[addr] as f32, color.grey() as f32, alpha) as u8;
         } else {
             let rgb = color.rgb();
-            for (i, c) in self.data[addr..addr+3].iter_mut().enumerate() {
+            for (i, c) in self.data[addr..addr + 3].iter_mut().enumerate() {
                 *c = lerp(*c as f32, rgb[i] as f32, alpha) as u8;
             }
         }
@@ -127,7 +128,7 @@ impl Framebuffer for Pixmap {
                 if self.samples == 1 {
                     self.data[addr] = 255 - self.data[addr];
                 } else {
-                    for c in self.data[addr..addr+3].iter_mut() {
+                    for c in self.data[addr..addr + 3].iter_mut() {
                         *c = 255 - *c;
                     }
                 }
@@ -145,7 +146,7 @@ impl Framebuffer for Pixmap {
                 if self.samples == 1 {
                     self.data[addr] = self.data[addr].saturating_sub(drift);
                 } else {
-                    for c in self.data[addr..addr+3].iter_mut() {
+                    for c in self.data[addr..addr + 3].iter_mut() {
                         *c = c.saturating_sub(drift);
                     }
                 }
@@ -166,12 +167,21 @@ impl Framebuffer for Pixmap {
             return Err(format_err!("nothing to save"));
         }
         let (width, height) = self.dims();
-        let file = File::create(path).with_context(|| format!("can't create output file {}", path))?;
+        let file =
+            File::create(path).with_context(|| format!("can't create output file {}", path))?;
         let mut encoder = png::Encoder::new(file, width, height);
         encoder.set_depth(png::BitDepth::Eight);
-        encoder.set_color(if self.samples == 3 { png::ColorType::Rgb } else { png::ColorType::Grayscale });
-        let mut writer = encoder.write_header().with_context(|| format!("can't write PNG header for {}", path))?;
-        writer.write_image_data(&self.data).with_context(|| format!("can't write PNG data to {}", path))?;
+        encoder.set_color(if self.samples == 3 {
+            png::ColorType::Rgb
+        } else {
+            png::ColorType::Grayscale
+        });
+        let mut writer = encoder
+            .write_header()
+            .with_context(|| format!("can't write PNG header for {}", path))?;
+        writer
+            .write_image_data(&self.data)
+            .with_context(|| format!("can't write PNG data to {}", path))?;
         Ok(())
     }
 
@@ -179,14 +189,11 @@ impl Framebuffer for Pixmap {
         Err(format_err!("unsupported"))
     }
 
-    fn set_monochrome(&mut self, _enable: bool) {
-    }
+    fn set_monochrome(&mut self, _enable: bool) {}
 
-    fn set_dithered(&mut self, _enable: bool) {
-    }
+    fn set_dithered(&mut self, _enable: bool) {}
 
-    fn set_inverted(&mut self, _enable: bool) {
-    }
+    fn set_inverted(&mut self, _enable: bool) {}
 
     fn monochrome(&self) -> bool {
         false

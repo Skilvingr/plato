@@ -1,9 +1,11 @@
-use std::fmt;
-use serde::{Serialize, Deserialize};
+use crate::colour::Colour;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::f32::consts;
-use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign};
-use crate::color::Color;
+use std::fmt;
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+
+pub const POINT_ZERO: Point = Point::new(0, 0);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Dir {
@@ -118,8 +120,12 @@ pub struct Point {
 
 #[macro_export]
 macro_rules! pt {
-    ($x:expr, $y:expr $(,)* ) => ($crate::geom::Point::new($x, $y));
-    ($a:expr) => ($crate::geom::Point::new($a, $a));
+    ($x:expr, $y:expr $(,)* ) => {
+        $crate::geom::Point::new($x, $y)
+    };
+    ($a:expr) => {
+        $crate::geom::Point::new($a, $a)
+    };
 }
 
 impl fmt::Display for Point {
@@ -212,23 +218,26 @@ pub enum CornerSpec {
         north_east: i32,
         south_east: i32,
         south_west: i32,
-    }
+    },
 }
 
 pub trait ColorSource {
-    fn color(&self, x: i32, y: i32) -> Color;
+    fn color(&self, x: i32, y: i32) -> Colour;
 }
 
-impl<F> ColorSource for F where F: Fn(i32, i32) -> Color {
+impl<F> ColorSource for F
+where
+    F: Fn(i32, i32) -> Colour,
+{
     #[inline]
-    fn color(&self, x: i32, y: i32) -> Color {
+    fn color(&self, x: i32, y: i32) -> Colour {
         (self)(x, y)
     }
 }
 
-impl ColorSource for Color {
+impl ColorSource for Colour {
     #[inline]
-    fn color(&self, _: i32, _: i32) -> Color {
+    fn color(&self, _: i32, _: i32) -> Colour {
         *self
     }
 }
@@ -236,7 +245,7 @@ impl ColorSource for Color {
 #[derive(Debug, Copy, Clone)]
 pub struct BorderSpec {
     pub thickness: u16,
-    pub color: Color,
+    pub color: Colour,
 }
 
 const HALF_PIXEL_DIAGONAL: f32 = consts::SQRT_2 / 2.0;
@@ -266,7 +275,7 @@ pub fn surface_area(dist: f32, angle: f32) -> f32 {
     }
 }
 
-// Returns the nearest point to p on segment ab
+/// Returns the nearest point to p on segment ab
 pub fn nearest_segment_point(p: Vec2, a: Vec2, b: Vec2) -> (Vec2, f32) {
     let ab = b - a;
     let ap = p - a;
@@ -325,7 +334,7 @@ pub fn divide(n: i32, p: i32) -> Vec<i32> {
     let tick = p.checked_div(rem).unwrap_or(0);
     let mut vec = Vec::with_capacity(p as usize);
     for i in 0..p {
-        if rem > 0 && (i+1) % tick == 0 {
+        if rem > 0 && (i + 1) % tick == 0 {
             vec.push(size + 1);
             rem -= 1;
         } else {
@@ -352,7 +361,7 @@ pub fn circular_distances(a: u16, mut b: u16, p: u16) -> (u16, u16) {
 }
 
 impl Point {
-    pub fn new(x: i32, y: i32) -> Point {
+    pub const fn new(x: i32, y: i32) -> Point {
         Point { x, y }
     }
 
@@ -463,8 +472,12 @@ pub struct Vec2 {
 
 #[macro_export]
 macro_rules! vec2 {
-    ($x:expr, $y:expr $(,)* ) => ($crate::geom::Vec2::new($x, $y));
-    ($a:expr) => ($crate::geom::Vec2::new($a, $a));
+    ($x:expr, $y:expr $(,)* ) => {
+        $crate::geom::Vec2::new($x, $y)
+    };
+    ($a:expr) => {
+        $crate::geom::Vec2::new($a, $a)
+    };
 }
 
 impl Vec2 {
@@ -530,22 +543,31 @@ pub struct Rectangle {
 
 #[macro_export]
 macro_rules! rect {
-    ($x0:expr, $y0:expr, $x1:expr, $y1:expr $(,)* ) => ($crate::geom::Rectangle::new($crate::geom::Point::new($x0, $y0), $crate::geom::Point::new($x1, $y1)));
-    ($min:expr, $max:expr $(,)* ) => ($crate::geom::Rectangle::new($min, $max));
+    ($x0:expr, $y0:expr, $x1:expr, $y1:expr $(,)* ) => {
+        $crate::geom::Rectangle::new(
+            $crate::geom::Point::new($x0, $y0),
+            $crate::geom::Point::new($x1, $y1),
+        )
+    };
+    ($min:expr, $max:expr $(,)* ) => {
+        $crate::geom::Rectangle::new($min, $max)
+    };
 }
+pub use rect;
 
 impl fmt::Display for Rectangle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{}, {}, {}, {}]", self.min.x, self.min.y, self.max.x, self.max.y)
+        write!(
+            f,
+            "[{}, {}, {}, {}]",
+            self.min.x, self.min.y, self.max.x, self.max.y
+        )
     }
 }
 
 impl Rectangle {
     pub fn new(min: Point, max: Point) -> Rectangle {
-        Rectangle {
-            min,
-            max,
-        }
+        Rectangle { min, max }
     }
 
     pub fn from_point(pt: Point) -> Rectangle {
@@ -585,23 +607,29 @@ impl Rectangle {
     }
 
     pub fn includes(&self, pt: Point) -> bool {
-        self.min.x <= pt.x && pt.x < self.max.x &&
-        self.min.y <= pt.y && pt.y < self.max.y
+        self.min.x <= pt.x && pt.x < self.max.x && self.min.y <= pt.y && pt.y < self.max.y
     }
 
     pub fn contains(&self, rect: &Rectangle) -> bool {
-        rect.min.x >= self.min.x && rect.max.x <= self.max.x &&
-        rect.min.y >= self.min.y && rect.max.y <= self.max.y
+        rect.min.x >= self.min.x
+            && rect.max.x <= self.max.x
+            && rect.min.y >= self.min.y
+            && rect.max.y <= self.max.y
     }
 
     pub fn overlaps(&self, rect: &Rectangle) -> bool {
-        self.min.x < rect.max.x && rect.min.x < self.max.x &&
-        self.min.y < rect.max.y && rect.min.y < self.max.y
+        self.min.x < rect.max.x
+            && rect.min.x < self.max.x
+            && self.min.y < rect.max.y
+            && rect.min.y < self.max.y
     }
 
     pub fn extends(&self, rect: &Rectangle) -> bool {
-        let dmin = [self.width(), self.height(),
-                    rect.width(), rect.height()].into_iter().min().unwrap() as i32 / 3;
+        let dmin = [self.width(), self.height(), rect.width(), rect.height()]
+            .into_iter()
+            .min()
+            .unwrap() as i32
+            / 3;
 
         // rect is on top of self.
         if self.min.y >= rect.max.y && self.min.x < rect.max.x && rect.min.x < self.max.x {
@@ -621,12 +649,16 @@ impl Rectangle {
     }
 
     pub fn touches(&self, rect: &Rectangle) -> bool {
-        ((self.min.x == rect.max.x || self.max.x == rect.min.x ||
-          self.min.x == rect.min.x || self.max.x == rect.max.x) &&
-         (self.max.y >= rect.min.y && self.min.y <= rect.max.y)) ||
-        ((self.min.y == rect.max.y || self.max.y == rect.min.y ||
-          self.min.y == rect.min.y || self.max.y == rect.max.y) &&
-         (self.max.x >= rect.min.x && self.min.x <= rect.max.x))
+        ((self.min.x == rect.max.x
+            || self.max.x == rect.min.x
+            || self.min.x == rect.min.x
+            || self.max.x == rect.max.x)
+            && (self.max.y >= rect.min.y && self.min.y <= rect.max.y))
+            || ((self.min.y == rect.max.y
+                || self.max.y == rect.min.y
+                || self.min.y == rect.min.y
+                || self.max.y == rect.max.y)
+                && (self.max.x >= rect.min.x && self.min.x <= rect.max.x))
     }
 
     pub fn merge(&mut self, pt: Point) {
@@ -661,10 +693,10 @@ impl Rectangle {
 
     pub fn intersection(&self, rect: &Rectangle) -> Option<Rectangle> {
         if self.overlaps(rect) {
-            Some(Rectangle::new(Point::new(self.min.x.max(rect.min.x),
-                                           self.min.y.max(rect.min.y)),
-                                Point::new(self.max.x.min(rect.max.x),
-                                           self.max.y.min(rect.max.y))))
+            Some(Rectangle::new(
+                Point::new(self.min.x.max(rect.min.x), self.min.y.max(rect.min.y)),
+                Point::new(self.max.x.min(rect.max.x), self.max.y.min(rect.max.y)),
+            ))
         } else {
             None
         }
@@ -1155,13 +1187,17 @@ impl Boundary {
     }
 
     pub fn overlaps(&self, rect: &Boundary) -> bool {
-        self.min.x < rect.max.x && rect.min.x < self.max.x &&
-        self.min.y < rect.max.y && rect.min.y < self.max.y
+        self.min.x < rect.max.x
+            && rect.min.x < self.max.x
+            && self.min.y < rect.max.y
+            && rect.min.y < self.max.y
     }
 
     pub fn contains(&self, rect: &Boundary) -> bool {
-        rect.min.x >= self.min.x && rect.max.x <= self.max.x &&
-        rect.min.y >= self.min.y && rect.max.y <= self.max.y
+        rect.min.x >= self.min.x
+            && rect.max.x <= self.max.x
+            && rect.min.y >= self.min.y
+            && rect.max.y <= self.max.y
     }
 
     pub fn width(&self) -> f32 {
@@ -1175,8 +1211,15 @@ impl Boundary {
 
 #[macro_export]
 macro_rules! bndr {
-    ($x0:expr, $y0:expr, $x1:expr, $y1:expr $(,)* ) => ($crate::geom::Boundary::new($crate::geom::Vec2::new($x0, $y0), $crate::geom::Vec2::new($x1, $y1)));
-    ($min:expr, $max:expr $(,)* ) => ($crate::geom::Boundary::new($min, $max));
+    ($x0:expr, $y0:expr, $x1:expr, $y1:expr $(,)* ) => {
+        $crate::geom::Boundary::new(
+            $crate::geom::Vec2::new($x0, $y0),
+            $crate::geom::Vec2::new($x1, $y1),
+        )
+    };
+    ($min:expr, $max:expr $(,)* ) => {
+        $crate::geom::Boundary::new($min, $max)
+    };
 }
 
 impl Into<Rectangle> for Boundary {
@@ -1324,10 +1367,9 @@ impl Region {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::{divide, LinearDir};
+    use super::{LinearDir, divide};
 
     #[test]
     fn test_linear_dir_opposite() {

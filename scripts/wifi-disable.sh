@@ -1,47 +1,110 @@
-#! /bin/sh
+#!/bin/sh
 
-POWER_TOGGLE=module
-case "$WIFI_MODULE" in
-	moal)
-		POWER_TOGGLE=ntx_io
-		;;
-	wlan_drv_gen4m)
-		POWER_TOGGLE=wmt
-		;;
-esac
+# Adapted from https://github.com/koreader/koreader/blob/7353a2e5a4fe28a0f7eaa879c0ed4cb5f7151d98/platform/kobo/disable-wifi.sh
 
-if [ "$POWER_TOGGLE" != wmt ]; then
-	grep -q "^${WIFI_MODULE}\b" /proc/modules || exit 1
+# Disable wifi, and remove all modules.
+# NOTE: Save our resolv.conf to avoid ending up with an empty one, in case the DHCP client wipes it on release (#6424).
+cp -a "/etc/resolv.conf" "/tmp/resolv.ko"
+old_hash="$(md5sum "/etc/resolv.conf" | cut -f1 -d' ')"
+
+if [ -x "/sbin/dhcpcd" ]; then
+    dhcpcd -d -k "${INTERFACE}"
+    killall -q -TERM udhcpc default.script
+else
+    killall -q -TERM udhcpc default.script dhcpcd
 fi
 
-SCRIPTS_DIR=$(dirname "$0")
-PRE_DOWN_SCRIPT=$SCRIPTS_DIR/wifi-pre-down.sh
-[ -e "$PRE_DOWN_SCRIPT" ] && $PRE_DOWN_SCRIPT
+# NOTE: dhcpcd -k waits for the signalled process to die, but busybox's killall doesn't have a -w, --wait flag,
+#       so we have to wait for udhcpc to die ourselves...
+# NOTE: But if all is well, there *isn't* any udhcpc process or script left to begin with...
+kill_timeout=0
+while pkill -0 udhcpc; do
+    # Stop waiting after 5s
+    if [ ${kill_timeout} -ge 20 ]; then
+        break
+    fi
+    usleep 250000
+    kill_timeout=$((kill_timeout + 1))
+done
 
-killall -q udhcpc default.script
+new_hash="$(md5sum "/etc/resolv.conf" | cut -f1 -d' ')"
+# Restore our network-specific resolv.conf if the DHCP client wiped it when releasing the lease...
+if [ "${new_hash}" != "${old_hash}" ]; then
+    mv -f "/tmp/resolv.ko" "/etc/resolv.conf"
+else
+    rm -f "/tmp/resolv.ko"
+fi
 
-wpa_cli -i "$INTERFACE" terminate
-[ "$WIFI_MODULE" = dhd ] && wlarm_le -i "$INTERFACE" down
-ifconfig "$INTERFACE" down
+wpa_cli -i "${INTERFACE}" terminate
 
-sleep 0.2
+[ "${WIFI_MODULE}" = "dhd" ] && wlarm_le -i "${INTERFACE}" down
+ifconfig "${INTERFACE}" down
 
-[ "$POWER_TOGGLE" != wmt ] && rmmod "$WIFI_MODULE"
-[ "$WIFI_MODULE" = moal ] && rmmod mlan
-
-case "$POWER_TOGGLE" in
-	ntx_io)
-		# CM_WIFI_CTRL
-		ioctl -q -v 0 /dev/ntx_io 208
-		;;
-	wmt)
-		echo 0 > /dev/wmtWifi
-		;;
-	module)
-		rmmod sdio_wifi_pwr
-		;;
+# Handle dependencies, if any
+WIFI_DEP_MOD=""
+# Honor the platform's preferred method to toggle power
+POWER_TOGGLE="module"
+# Some platforms never unload the wifi modules
+SKIP_UNLOAD=""
+case "${WIFI_MODULE}" in
+    "moal")
+        WIFI_DEP_MOD="mlan"
+        POWER_TOGGLE="ntx_io"
+        ;;
+    "wlan_drv_gen4m")
+        POWER_TOGGLE="wmt"
+        SKIP_UNLOAD="true"
+        ;;
 esac
 
+if [ -z "${SKIP_UNLOAD}" ]; then
+    # Some sleep in between may avoid system getting hung
+    # (we test if a module is actually loaded to avoid unneeded sleeps)
+    if grep -q "^${WIFI_MODULE} " "/proc/modules"; then
+        usleep 250000
+        # NOTE: Kobo's busybox build is weird. rmmod appears to be modprobe in disguise, defaulting to the -r flag...
+        #       But since there's currently no modules.dep file being shipped, nor do they include the depmod applet,
+        #       go with what the FW is doing, which is rmmod.
+        # c.f., #2394?
+        rmmod "${WIFI_MODULE}"
+    fi
 
-POST_DOWN_SCRIPT=$SCRIPTS_DIR/wifi-post-down.sh
-[ -e "$POST_DOWN_SCRIPT" ] && $POST_DOWN_SCRIPT
+    if [ -n "${WIFI_DEP_MOD}" ]; then
+        if grep -q "^${WIFI_DEP_MOD} " "/proc/modules"; then
+            usleep 250000
+            rmmod "${WIFI_DEP_MOD}"
+        fi
+    fi
+fi
+
+case "${POWER_TOGGLE}" in
+    "ntx_io")
+        usleep 250000
+        ioctl -q -v 0 /dev/ntx_io 208
+        ;;
+    "wmt")
+        echo 0 >/dev/wmtWifi
+        ;;
+    *)
+        if grep -q "^sdio_wifi_pwr " "/proc/modules"; then
+            # Handle the shitty DVFS switcheroo...
+            if [ -n "${CPUFREQ_DVFS}" ]; then
+                echo "0" >"/sys/devices/platform/mxc_dvfs_core.0/enable"
+                if [ -n "${CPUFREQ_CONSERVATIVE}" ]; then
+                    echo "conservative" >"/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
+                else
+                    echo "userspace" >"/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
+                    cat "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq" >"/sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed"
+                fi
+            fi
+            usleep 250000
+            rmmod sdio_wifi_pwr
+        fi
+
+        # Poke the kernel via ioctl on platforms without the dedicated power module...
+        if [ ! -e "/drivers/${PLATFORM}/wifi/sdio_wifi_pwr.ko" ]; then
+            usleep 250000
+            ioctl -q -v 0 /dev/ntx_io 208
+        fi
+        ;;
+esac

@@ -2,27 +2,56 @@
 
 use std::mem;
 
-pub const DDJVU_JOB_OK: JobStatus = 2;
-pub const DDJVU_JOB_FAILED: JobStatus = 3;
+#[repr(C)]
+#[derive(PartialEq, PartialOrd, Copy, Clone)]
+#[allow(non_camel_case_types)]
+pub enum JobStatus {
+    DDJVU_JOB_NOTSTARTED, /* operation was not even started */
+    DDJVU_JOB_STARTED,    /* operation is in progress */
+    DDJVU_JOB_OK,         /* operation terminated successfully */
+    DDJVU_JOB_FAILED,     /* operation failed because of an error */
+    DDJVU_JOB_STOPPED,    /* operation was interrupted by user */
+}
 
-pub const DDJVU_ERROR: MessageTag = 0;
-pub const DDJVU_INFO: MessageTag = 1;
-pub const DDJVU_NEWSTREAM: MessageTag = 2;
-pub const DDJVU_DOCINFO: MessageTag = 3;
-pub const DDJVU_PAGEINFO: MessageTag = 4;
-pub const DDJVU_RELAYOUT: MessageTag = 5;
-pub const DDJVU_REDISPLAY: MessageTag = 6;
-pub const DDJVU_CHUNK: MessageTag = 7;
-pub const DDJVU_THUMBNAIL: MessageTag = 8;
-pub const DDJVU_PROGRESS: MessageTag = 9;
+#[repr(C)]
+#[derive(PartialEq, Copy, Clone)]
+#[allow(non_camel_case_types)]
+pub enum MessageTag {
+    DDJVU_ERROR,
+    DDJVU_INFO,
+    DDJVU_NEWSTREAM,
+    DDJVU_DOCINFO,
+    DDJVU_PAGEINFO,
+    DDJVU_RELAYOUT,
+    DDJVU_REDISPLAY,
+    DDJVU_CHUNK,
+    DDJVU_THUMBNAIL,
+    DDJVU_PROGRESS,
+}
 
-pub const DDJVU_FORMAT_BGR24: FormatStyle = 0;
-pub const DDJVU_FORMAT_RGB24: FormatStyle = 1;
-pub const DDJVU_FORMAT_RGBMASK16: FormatStyle = 2;
-pub const DDJVU_FORMAT_RGBMASK32: FormatStyle = 3;
-pub const DDJVU_FORMAT_GREY8: FormatStyle = 4;
+#[repr(C)]
+#[allow(non_camel_case_types)]
+pub enum FormatStyle {
+    DDJVU_FORMAT_BGR24,     /* truecolor 24 bits in BGR order */
+    DDJVU_FORMAT_RGB24,     /* truecolor 24 bits in RGB order */
+    DDJVU_FORMAT_RGBMASK16, /* truecolor 16 bits with masks */
+    DDJVU_FORMAT_RGBMASK32, /* truecolor 32 bits with masks */
+    DDJVU_FORMAT_GREY8,     /* greylevel 8 bits */
+    DDJVU_FORMAT_PALETTE8,  /* paletized 8 bits (6x6x6 color cube) */
+    DDJVU_FORMAT_MSBTOLSB,  /* packed bits, msb on the left */
+    DDJVU_FORMAT_LSBTOMSB,  /* packed bits, lsb on the left */
+}
 
-pub const DDJVU_RENDER_COLOR: RenderMode = 0;
+#[repr(C)]
+#[allow(non_camel_case_types)]
+pub enum RenderMode {
+    DDJVU_RENDER_COLOR = 0,  /* color page or stencil */
+    DDJVU_RENDER_BLACK,      /* stencil or color page */
+    DDJVU_RENDER_COLORONLY,  /* color page or fail */
+    DDJVU_RENDER_MASKONLY,   /* stencil or fail */
+    DDJVU_RENDER_BACKGROUND, /* color background layer */
+    DDJVU_RENDER_FOREGROUND, /* color foreground layer */
+}
 
 pub const MINIEXP_NIL: *mut MiniExp = 0 as *mut MiniExp;
 pub const MINIEXP_DUMMY: *mut MiniExp = 2 as *mut MiniExp;
@@ -36,13 +65,8 @@ pub enum ExoJob {}
 pub enum ExoPage {}
 pub enum MiniExp {}
 
-pub type JobStatus = libc::c_uint;
-pub type MessageTag = libc::c_uint;
-pub type RenderMode = libc::c_uint;
-pub type FormatStyle = libc::c_uint;
-
-#[link(name="djvulibre")]
-extern {
+#[link(name = "djvulibre")]
+unsafe extern "C" {
     pub fn ddjvu_context_create(name: *const libc::c_char) -> *mut ExoContext;
     pub fn ddjvu_context_release(ctx: *mut ExoContext);
     pub fn ddjvu_cache_set_size(ctx: *mut ExoContext, size: libc::c_ulong);
@@ -53,26 +77,56 @@ extern {
     pub fn ddjvu_page_job(page: *mut ExoPage) -> *mut ExoJob;
     pub fn ddjvu_job_status(job: *mut ExoJob) -> JobStatus;
     pub fn ddjvu_job_release(job: *mut ExoJob);
-    pub fn ddjvu_document_create_by_filename_utf8(ctx: *mut ExoContext, path: *const libc::c_char, cache: libc::c_int) -> *mut ExoDocument;
+    pub fn ddjvu_document_create_by_filename_utf8(
+        ctx: *mut ExoContext,
+        path: *const libc::c_char,
+        cache: libc::c_int,
+    ) -> *mut ExoDocument;
     pub fn ddjvu_document_get_pagenum(doc: *mut ExoDocument) -> libc::c_int;
-    pub fn ddjvu_page_create_by_pageno(doc: *mut ExoDocument, page_idx: libc::c_int) -> *mut ExoPage;
-    pub fn ddjvu_page_create_by_pageid(doc: *mut ExoDocument, pageid: *const libc::c_char) -> *mut ExoPage;
+    pub fn ddjvu_page_create_by_pageno(
+        doc: *mut ExoDocument,
+        page_idx: libc::c_int,
+    ) -> *mut ExoPage;
+    pub fn ddjvu_page_create_by_pageid(
+        doc: *mut ExoDocument,
+        pageid: *const libc::c_char,
+    ) -> *mut ExoPage;
     pub fn ddjvu_page_get_width(page: *mut ExoPage) -> libc::c_int;
     pub fn ddjvu_page_get_height(page: *mut ExoPage) -> libc::c_int;
     pub fn ddjvu_page_get_resolution(page: *mut ExoPage) -> libc::c_int;
     pub fn ddjvu_page_get_rotation(page: *mut ExoPage) -> libc::c_uint;
-    pub fn ddjvu_page_render(page: *mut ExoPage, mode: RenderMode, p_rect: *const DjvuRect, r_rect: *const DjvuRect, fmt: *const ExoFormat, row_size: libc::c_ulong, buf: *mut u8) -> libc::c_int;
-    pub fn ddjvu_format_create(style: FormatStyle, nargs: libc::c_int, args: *const libc::c_uint) -> *mut ExoFormat;
+    pub fn ddjvu_page_render(
+        page: *mut ExoPage,
+        mode: RenderMode,
+        p_rect: *const DjvuRect,
+        r_rect: *const DjvuRect,
+        fmt: *const ExoFormat,
+        row_size: libc::c_ulong,
+        buf: *mut u8,
+    ) -> libc::c_int;
+    pub fn ddjvu_format_create(
+        style: FormatStyle,
+        nargs: libc::c_int,
+        args: *const libc::c_uint,
+    ) -> *mut ExoFormat;
     pub fn ddjvu_format_release(fmt: *mut ExoFormat);
     pub fn ddjvu_format_set_row_order(fmt: *mut ExoFormat, top_to_bottom: libc::c_int);
     pub fn ddjvu_format_set_y_direction(fmt: *mut ExoFormat, top_to_bottom: libc::c_int);
-    pub fn ddjvu_document_get_pagetext(doc: *mut ExoDocument, page_idx: libc::c_int, max_detail: *const libc::c_char) -> *mut MiniExp;
+    pub fn ddjvu_document_get_pagetext(
+        doc: *mut ExoDocument,
+        page_idx: libc::c_int,
+        max_detail: *const libc::c_char,
+    ) -> *mut MiniExp;
     pub fn ddjvu_document_get_outline(doc: *mut ExoDocument) -> *mut MiniExp;
     pub fn ddjvu_document_get_anno(doc: *mut ExoDocument, compat: libc::c_int) -> *mut MiniExp;
-    pub fn ddjvu_document_get_pageanno(doc: *mut ExoDocument, page_idx: libc::c_int) -> *mut MiniExp;
+    pub fn ddjvu_document_get_pageanno(
+        doc: *mut ExoDocument,
+        page_idx: libc::c_int,
+    ) -> *mut MiniExp;
     pub fn ddjvu_anno_get_hyperlinks(annot: *mut MiniExp) -> *mut *mut MiniExp;
     pub fn ddjvu_anno_get_metadata_keys(annot: *mut MiniExp) -> *mut *mut MiniExp;
-    pub fn ddjvu_anno_get_metadata(annot: *mut MiniExp, key: *const MiniExp) -> *const libc::c_char;
+    pub fn ddjvu_anno_get_metadata(annot: *mut MiniExp, key: *const MiniExp)
+    -> *const libc::c_char;
     pub fn ddjvu_miniexp_release(document: *mut ExoDocument, exp: *mut MiniExp);
     pub fn miniexp_symbol(s: *const libc::c_char) -> *const MiniExp;
     pub fn miniexp_length(exp: *mut MiniExp) -> libc::c_int;
@@ -82,6 +136,7 @@ extern {
     pub fn miniexp_to_name(sym: *mut MiniExp) -> *const libc::c_char;
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct DjvuRect {
@@ -90,71 +145,117 @@ pub struct DjvuRect {
     pub w: libc::c_uint,
     pub h: libc::c_uint,
 }
-
 impl Default for DjvuRect {
     fn default() -> Self {
         unsafe { mem::zeroed() }
     }
 }
 
+// OK
 #[repr(C)]
-pub struct Message {
+pub union Message {
+    pub any: MessageAny,
+    pub error: MessageError,
+    info: MessageInfo,
+    new_stream: MessageNewStream,
+    doc_info: MessageDocInfo,
+    page_info: MessagePageInfo,
+    chunk: MessageChunk,
+    relayout: MessageRelayout,
+    redisplay: MessageRedisplay,
+    thumbnail: MessageThumbnail,
+    progress: MessageProgress,
+}
+
+// OK
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct MessageAny {
     pub tag: MessageTag,
     context: *mut ExoContext,
     document: *mut ExoDocument,
     page: *mut ExoPage,
     job: *mut ExoJob,
-    pub u: MessageBlob,
 }
 
-#[repr(C)]
-pub union MessageBlob {
-    pub error: MessageError,
-    info: MessageInfo,
-    new_stream: MessageNewStream,
-    chunk: MessageChunk,
-    thumbnail: MessageThumbnail,
-    progress: MessageProgress,
-}
-
+// OK
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MessageError {
+    pub any: MessageAny,
     pub message: *const libc::c_char,
     function: *const libc::c_char,
     pub filename: *const libc::c_char,
     pub lineno: libc::c_int,
 }
 
+// OK
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MessageInfo {
+    any: MessageAny,
     message: *const libc::c_char,
 }
 
+// OK
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MessageNewStream {
+    any: MessageAny,
     streamid: libc::c_int,
     name: *const libc::c_char,
     url: *const libc::c_char,
 }
 
+// OK
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct MessageDocInfo {
+    any: MessageAny,
+}
+
+// OK
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct MessagePageInfo {
+    any: MessageAny,
+}
+
+// OK
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct MessageRelayout {
+    any: MessageAny,
+}
+
+// OK
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct MessageRedisplay {
+    any: MessageAny,
+}
+
+// OK
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MessageChunk {
+    any: MessageAny,
     chunkid: *const libc::c_char,
 }
 
+// OK
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MessageThumbnail {
+    any: MessageAny,
     pagenum: libc::c_int,
 }
 
+// OK
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MessageProgress {
+    any: MessageAny,
     status: JobStatus,
     percent: libc::c_int,
 }

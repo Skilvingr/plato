@@ -1,14 +1,14 @@
+use crate::colour::BLACK;
+use crate::colour::Colour;
+use crate::font::{Font, FontFamily, RenderPlan};
+use crate::geom::{Edge, Point, Rectangle};
+pub use crate::metadata::TextAlign;
+use fxhash::FxHashMap;
+use kl_hyphenate::{Language, Load, Standard};
+use std::fmt::Debug;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::fmt::Debug;
-use fxhash::FxHashMap;
-use lazy_static::lazy_static;
-use kl_hyphenate::{Standard, Language, Load};
-use crate::color::Color;
-use crate::geom::{Point, Rectangle, Edge};
-use crate::font::{FontFamily, Font, RenderPlan};
-pub use crate::metadata::TextAlign;
-use crate::color::BLACK;
+use std::sync::LazyLock;
 
 pub const DEFAULT_HYPH_LANG: &str = "en";
 
@@ -64,7 +64,7 @@ pub struct StyleData {
     pub font_weight: FontWeight,
     pub font_size: f32,
     pub font_features: Option<Vec<String>>,
-    pub color: Color,
+    pub color: Colour,
     pub letter_spacing: i32,
     pub word_spacing: WordSpacing,
     pub vertical_align: i32,
@@ -211,15 +211,15 @@ pub enum InlineMaterial {
 impl InlineMaterial {
     pub fn offset(&self) -> Option<usize> {
         match self {
-            InlineMaterial::Text(TextMaterial { offset, .. }) |
-            InlineMaterial::Image(ImageMaterial { offset, .. }) => Some(*offset),
+            InlineMaterial::Text(TextMaterial { offset, .. })
+            | InlineMaterial::Image(ImageMaterial { offset, .. }) => Some(*offset),
             _ => None,
         }
     }
 
     pub fn text(&self) -> Option<&str> {
         match self {
-            InlineMaterial::Text(TextMaterial { ref text, .. }) => Some(text),
+            InlineMaterial::Text(TextMaterial { text, .. }) => Some(text),
             _ => None,
         }
     }
@@ -283,31 +283,30 @@ pub struct Fonts {
 }
 
 impl Fonts {
-    pub fn get_mut(&mut self, font_kind: FontKind, font_style: FontStyle, font_weight: FontWeight) -> &mut Font {
+    pub fn get_mut(
+        &mut self,
+        font_kind: FontKind,
+        font_style: FontStyle,
+        font_weight: FontWeight,
+    ) -> &mut Font {
         match font_kind {
-            FontKind::Serif => {
-                match (font_style, font_weight) {
-                    (FontStyle::Normal, FontWeight::Normal) => &mut self.serif.regular,
-                    (FontStyle::Normal, FontWeight::Bold) => &mut self.serif.bold,
-                    (FontStyle::Italic, FontWeight::Normal) => &mut self.serif.italic,
-                    (FontStyle::Italic, FontWeight::Bold) => &mut self.serif.bold_italic,
-                }
+            FontKind::Serif => match (font_style, font_weight) {
+                (FontStyle::Normal, FontWeight::Normal) => &mut self.serif.regular,
+                (FontStyle::Normal, FontWeight::Bold) => &mut self.serif.bold,
+                (FontStyle::Italic, FontWeight::Normal) => &mut self.serif.italic,
+                (FontStyle::Italic, FontWeight::Bold) => &mut self.serif.bold_italic,
             },
-            FontKind::SansSerif => {
-                match (font_style, font_weight) {
-                    (FontStyle::Normal, FontWeight::Normal) => &mut self.sans_serif.regular,
-                    (FontStyle::Normal, FontWeight::Bold) => &mut self.sans_serif.bold,
-                    (FontStyle::Italic, FontWeight::Normal) => &mut self.sans_serif.italic,
-                    (FontStyle::Italic, FontWeight::Bold) => &mut self.sans_serif.bold_italic,
-                }
+            FontKind::SansSerif => match (font_style, font_weight) {
+                (FontStyle::Normal, FontWeight::Normal) => &mut self.sans_serif.regular,
+                (FontStyle::Normal, FontWeight::Bold) => &mut self.sans_serif.bold,
+                (FontStyle::Italic, FontWeight::Normal) => &mut self.sans_serif.italic,
+                (FontStyle::Italic, FontWeight::Bold) => &mut self.sans_serif.bold_italic,
             },
-            FontKind::Monospace => {
-                match (font_style, font_weight) {
-                    (FontStyle::Normal, FontWeight::Normal) => &mut self.monospace.regular,
-                    (FontStyle::Normal, FontWeight::Bold) => &mut self.monospace.bold,
-                    (FontStyle::Italic, FontWeight::Normal) => &mut self.monospace.italic,
-                    (FontStyle::Italic, FontWeight::Bold) => &mut self.monospace.bold_italic,
-                }
+            FontKind::Monospace => match (font_style, font_weight) {
+                (FontStyle::Normal, FontWeight::Normal) => &mut self.monospace.regular,
+                (FontStyle::Normal, FontWeight::Bold) => &mut self.monospace.bold,
+                (FontStyle::Italic, FontWeight::Normal) => &mut self.monospace.italic,
+                (FontStyle::Italic, FontWeight::Bold) => &mut self.monospace.bold_italic,
             },
             FontKind::Cursive => &mut self.cursive,
             FontKind::Fantasy => &mut self.fantasy,
@@ -335,7 +334,7 @@ pub struct TextElement {
     pub font_size: u32,
     pub letter_spacing: i32,
     pub vertical_align: i32,
-    pub color: Color,
+    pub color: Colour,
     pub uri: Option<String>,
 }
 
@@ -371,7 +370,7 @@ pub struct TextCommand {
     pub font_style: FontStyle,
     pub font_weight: FontWeight,
     pub font_size: u32,
-    pub color: Color,
+    pub color: Colour,
     pub uri: Option<String>,
     pub rect: Rectangle,
 }
@@ -407,9 +406,15 @@ impl DrawCommand {
 
     pub fn position_mut(&mut self) -> Option<&mut Point> {
         match *self {
-            DrawCommand::Text(TextCommand { ref mut position, .. }) => Some(position),
-            DrawCommand::ExtraText(TextCommand { ref mut position, .. }) => Some(position),
-            DrawCommand::Image(ImageCommand { ref mut position, .. }) => Some(position),
+            DrawCommand::Text(TextCommand {
+                ref mut position, ..
+            }) => Some(position),
+            DrawCommand::ExtraText(TextCommand {
+                ref mut position, ..
+            }) => Some(position),
+            DrawCommand::Image(ImageCommand {
+                ref mut position, ..
+            }) => Some(position),
             _ => None,
         }
     }
@@ -441,121 +446,130 @@ mod tests {
 }
 
 pub fn hyph_lang(name: &str) -> Option<Language> {
-    HYPHENATION_LANGUAGES.get(name).or_else(|| {
-        HYPHENATION_LANGUAGES.get(name.to_lowercase().as_str())
-    }).or_else(|| {
-        let name_lc = name.to_lowercase();
-        let mut s = name_lc.as_str();
-        while let Some(index) = s.rfind('-') {
-            s = &s[..index];
-            let opt = HYPHENATION_LANGUAGES.get(s);
-            if opt.is_some() {
-                return opt;
+    HYPHENATION_LANGUAGES
+        .get(name)
+        .or_else(|| HYPHENATION_LANGUAGES.get(name.to_lowercase().as_str()))
+        .or_else(|| {
+            let name_lc = name.to_lowercase();
+            let mut s = name_lc.as_str();
+            while let Some(index) = s.rfind('-') {
+                s = &s[..index];
+                let opt = HYPHENATION_LANGUAGES.get(s);
+                if opt.is_some() {
+                    return opt;
+                }
             }
-        }
-        None
-    }).cloned()
+            None
+        })
+        .cloned()
 }
 
-lazy_static! {
-pub static ref HYPHENATION_LANGUAGES: FxHashMap<&'static str, Language> = [
-    ("af", Language::Afrikaans),
-    ("hy", Language::Armenian),
-    ("as", Language::Assamese),
-    ("eu", Language::Basque),
-    ("be", Language::Belarusian),
-    ("bn", Language::Bengali),
-    ("bg", Language::Bulgarian),
-    ("ca", Language::Catalan),
-    ("zh-latn-pinyin", Language::Chinese),
-    ("cop", Language::Coptic),
-    ("hr", Language::Croatian),
-    ("cs", Language::Czech),
-    ("da", Language::Danish),
-    ("nl", Language::Dutch),
-    ("en-gb", Language::EnglishGB),
-    ("en-us", Language::EnglishUS),
-    ("en", Language::EnglishUS),
-    ("eo", Language::Esperanto),
-    ("et", Language::Estonian),
-    ("mul-ethi", Language::Ethiopic),
-    ("fi", Language::Finnish),
-    ("fr", Language::French),
-    ("fur", Language::Friulan),
-    ("gl", Language::Galician),
-    ("ka", Language::Georgian),
-    ("de", Language::German1996),
-    ("de-1901", Language::German1901),
-    ("de-1996", Language::German1996),
-    ("de-ch-1901", Language::GermanSwiss),
-    ("de-ch", Language::GermanSwiss),
-    ("grc", Language::GreekAncient),
-    ("el-monoton", Language::GreekMono),
-    ("el-polyton", Language::GreekPoly),
-    ("gu", Language::Gujarati),
-    ("hi", Language::Hindi),
-    ("hu", Language::Hungarian),
-    ("is", Language::Icelandic),
-    ("id", Language::Indonesian),
-    ("ia", Language::Interlingua),
-    ("ga", Language::Irish),
-    ("it", Language::Italian),
-    ("kn", Language::Kannada),
-    ("kmr", Language::Kurmanji),
-    ("la", Language::Latin),
-    ("la-x-classic", Language::LatinClassic),
-    ("la-x-liturgic", Language::LatinLiturgical),
-    ("lv", Language::Latvian),
-    ("lt", Language::Lithuanian),
-    ("mk", Language::Macedonian),
-    ("ml", Language::Malayalam),
-    ("mr", Language::Marathi),
-    ("mn-cyrl", Language::Mongolian),
-    ("nb", Language::NorwegianBokmal),
-    ("nn", Language::NorwegianNynorsk),
-    ("oc", Language::Occitan),
-    ("or", Language::Oriya),
-    ("pi", Language::Pali),
-    ("pa", Language::Panjabi),
-    ("pms", Language::Piedmontese),
-    ("pl", Language::Polish),
-    ("pt", Language::Portuguese),
-    ("ro", Language::Romanian),
-    ("rm", Language::Romansh),
-    ("ru", Language::Russian),
-    ("sa", Language::Sanskrit),
-    ("sr-cyrl", Language::SerbianCyrillic),
-    ("sh-cyrl", Language::SerbocroatianCyrillic),
-    ("sh-latn", Language::SerbocroatianLatin),
-    ("cu", Language::SlavonicChurch),
-    ("sk", Language::Slovak),
-    ("sl", Language::Slovenian),
-    ("es", Language::Spanish),
-    ("sv", Language::Swedish),
-    ("ta", Language::Tamil),
-    ("te", Language::Telugu),
-    ("th", Language::Thai),
-    ("tr", Language::Turkish),
-    ("tk", Language::Turkmen),
-    ("uk", Language::Ukrainian),
-    ("hsb", Language::Uppersorbian),
-    ("cy", Language::Welsh)].iter().cloned().collect();
+pub static HYPHENATION_LANGUAGES: LazyLock<FxHashMap<&'static str, Language>> =
+    LazyLock::new(|| {
+        [
+            ("af", Language::Afrikaans),
+            ("hy", Language::Armenian),
+            ("as", Language::Assamese),
+            ("eu", Language::Basque),
+            ("be", Language::Belarusian),
+            ("bn", Language::Bengali),
+            ("bg", Language::Bulgarian),
+            ("ca", Language::Catalan),
+            ("zh-latn-pinyin", Language::Chinese),
+            ("cop", Language::Coptic),
+            ("hr", Language::Croatian),
+            ("cs", Language::Czech),
+            ("da", Language::Danish),
+            ("nl", Language::Dutch),
+            ("en-gb", Language::EnglishGB),
+            ("en-us", Language::EnglishUS),
+            ("en", Language::EnglishUS),
+            ("eo", Language::Esperanto),
+            ("et", Language::Estonian),
+            ("mul-ethi", Language::Ethiopic),
+            ("fi", Language::Finnish),
+            ("fr", Language::French),
+            ("fur", Language::Friulan),
+            ("gl", Language::Galician),
+            ("ka", Language::Georgian),
+            ("de", Language::German1996),
+            ("de-1901", Language::German1901),
+            ("de-1996", Language::German1996),
+            ("de-ch-1901", Language::GermanSwiss),
+            ("de-ch", Language::GermanSwiss),
+            ("grc", Language::GreekAncient),
+            ("el-monoton", Language::GreekMono),
+            ("el-polyton", Language::GreekPoly),
+            ("gu", Language::Gujarati),
+            ("hi", Language::Hindi),
+            ("hu", Language::Hungarian),
+            ("is", Language::Icelandic),
+            ("id", Language::Indonesian),
+            ("ia", Language::Interlingua),
+            ("ga", Language::Irish),
+            ("it", Language::Italian),
+            ("kn", Language::Kannada),
+            ("kmr", Language::Kurmanji),
+            ("la", Language::Latin),
+            ("la-x-classic", Language::LatinClassic),
+            ("la-x-liturgic", Language::LatinLiturgical),
+            ("lv", Language::Latvian),
+            ("lt", Language::Lithuanian),
+            ("mk", Language::Macedonian),
+            ("ml", Language::Malayalam),
+            ("mr", Language::Marathi),
+            ("mn-cyrl", Language::Mongolian),
+            ("nb", Language::NorwegianBokmal),
+            ("nn", Language::NorwegianNynorsk),
+            ("oc", Language::Occitan),
+            ("or", Language::Oriya),
+            ("pi", Language::Pali),
+            ("pa", Language::Panjabi),
+            ("pms", Language::Piedmontese),
+            ("pl", Language::Polish),
+            ("pt", Language::Portuguese),
+            ("ro", Language::Romanian),
+            ("rm", Language::Romansh),
+            ("ru", Language::Russian),
+            ("sa", Language::Sanskrit),
+            ("sr-cyrl", Language::SerbianCyrillic),
+            ("sh-cyrl", Language::SerbocroatianCyrillic),
+            ("sh-latn", Language::SerbocroatianLatin),
+            ("cu", Language::SlavonicChurch),
+            ("sk", Language::Slovak),
+            ("sl", Language::Slovenian),
+            ("es", Language::Spanish),
+            ("sv", Language::Swedish),
+            ("ta", Language::Tamil),
+            ("te", Language::Telugu),
+            ("th", Language::Thai),
+            ("tr", Language::Turkish),
+            ("tk", Language::Turkmen),
+            ("uk", Language::Ukrainian),
+            ("hsb", Language::Uppersorbian),
+            ("cy", Language::Welsh),
+        ]
+        .iter()
+        .cloned()
+        .collect()
+    });
 
-pub static ref HYPHENATION_PATTERNS: FxHashMap<Language, Standard> = {
+pub static HYPHENATION_PATTERNS: LazyLock<FxHashMap<Language, Standard>> = LazyLock::new(|| {
     let mut map = FxHashMap::default();
     for lang in HYPHENATION_LANGUAGES.values() {
         if map.contains_key(lang) {
             continue;
         }
-        let base = Path::new("hyphenation-patterns")
-                        .join(lang.code());
+        let base = Path::new("hyphenation-patterns").join(lang.code());
         let path = base.with_extension("standard.bincode");
         if let Ok(mut patterns) = Standard::from_path(*lang, path) {
             let path = base.with_extension("bounds");
             if let Ok(pair) = fs::read_to_string(path) {
-                let bounds = pair.trim_end().split(' ')
-                                 .filter_map(|s| s.parse().ok())
-                                 .collect::<Vec<usize>>();
+                let bounds = pair
+                    .trim_end()
+                    .split(' ')
+                    .filter_map(|s| s.parse().ok())
+                    .collect::<Vec<usize>>();
                 if bounds.len() == 2 {
                     patterns.minima.0 = bounds[0];
                     patterns.minima.1 = bounds[1];
@@ -565,35 +579,46 @@ pub static ref HYPHENATION_PATTERNS: FxHashMap<Language, Standard> = {
         }
     }
     map
-};
+});
 
-pub static ref EM_SPACE_RATIOS: FxHashMap<char, f32> = [
-    // En quad.
-    ('\u{2000}', 0.5),
-    // Em quad.
-    ('\u{2001}', 1.0),
-    // En space.
-    ('\u{2002}', 0.5),
-    // Em space.
-    ('\u{2003}', 1.0),
-    // Three-per-em space.
-    ('\u{2004}', 0.33),
-    // Four-per-em space.
-    ('\u{2005}', 0.25),
-    // Six-per-em space.
-    ('\u{2006}', 0.16)].iter().cloned().collect();
+pub static EM_SPACE_RATIOS: LazyLock<FxHashMap<char, f32>> = LazyLock::new(|| {
+    [
+        // En quad.
+        ('\u{2000}', 0.5),
+        // Em quad.
+        ('\u{2001}', 1.0),
+        // En space.
+        ('\u{2002}', 0.5),
+        // Em space.
+        ('\u{2003}', 1.0),
+        // Three-per-em space.
+        ('\u{2004}', 0.33),
+        // Four-per-em space.
+        ('\u{2005}', 0.25),
+        // Six-per-em space.
+        ('\u{2006}', 0.16),
+    ]
+    .iter()
+    .cloned()
+    .collect()
+});
 
-pub static ref WORD_SPACE_RATIOS: FxHashMap<char, f32> = [
-    // Tabulation
-    ('\t', 4.0),
-    // No-break space
-    ('\u{00A0}', 1.0),
-    // Narrow no-break space
-    ('\u{202F}', 0.5),
-    // Thin space.
-    ('\u{2009}', 0.5),
-    // Hair space.
-    ('\u{200A}', 0.25)].iter().cloned().collect();
-}
+pub static WORD_SPACE_RATIOS: LazyLock<FxHashMap<char, f32>> = LazyLock::new(|| {
+    [
+        // Tabulation
+        ('\t', 4.0),
+        // No-break space
+        ('\u{00A0}', 1.0),
+        // Narrow no-break space
+        ('\u{202F}', 0.5),
+        // Thin space.
+        ('\u{2009}', 0.5),
+        // Hair space.
+        ('\u{200A}', 0.25),
+    ]
+    .iter()
+    .cloned()
+    .collect()
+});
 
 pub const FONT_SPACES: &str = " \u{2007}\u{2008}";

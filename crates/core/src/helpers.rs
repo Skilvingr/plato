@@ -1,32 +1,31 @@
+use anyhow::{Context, Error};
+use entities::ENTITIES;
+use fxhash::FxHashMap;
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::borrow::Cow;
 use std::char;
 use std::fmt;
-use std::str::FromStr;
-use std::borrow::Cow;
-use std::time::SystemTime;
-use std::num::ParseIntError;
 use std::fs::{self, File, Metadata};
 use std::io::{self, BufReader, BufWriter};
-use std::path::{Path, PathBuf, Component};
-use fxhash::FxHashMap;
+use std::num::ParseIntError;
 use std::ops::{Deref, DerefMut};
-use serde::{Serialize, Serializer, Deserialize, Deserializer};
-use serde::de::{self, Visitor};
-use lazy_static::lazy_static;
-use entities::ENTITIES;
+use std::path::{Component, Path, PathBuf};
+use std::str::FromStr;
+use std::sync::LazyLock;
+use std::time::SystemTime;
 use walkdir::DirEntry;
-use anyhow::{Error, Context};
 
-lazy_static! {
-    pub static ref CHARACTER_ENTITIES: FxHashMap<&'static str, &'static str> = {
+pub static CHARACTER_ENTITIES: LazyLock<FxHashMap<&'static str, &'static str>> =
+    LazyLock::new(|| {
         let mut m = FxHashMap::default();
         for e in ENTITIES.iter() {
             m.insert(e.entity, e.characters);
         }
         m
-    };
-}
+    });
 
-pub fn decode_entities(text: &str) -> Cow<str> {
+pub fn decode_entities(text: &'_ str) -> Cow<'_, str> {
     if text.find('&').is_none() {
         return Cow::Borrowed(text);
     }
@@ -41,14 +40,12 @@ pub fn decode_entities(text: &str) -> Cow<str> {
             if let Some(repl) = CHARACTER_ENTITIES.get(&cursor[..=end_index]) {
                 buf.push_str(repl);
             } else if cursor[1..].starts_with('#') {
-                let radix = if cursor[2..].starts_with('x') {
-                    16
-                } else {
-                    10
-                };
+                let radix = if cursor[2..].starts_with('x') { 16 } else { 10 };
                 let drift_index = 2 + radix as usize / 16;
                 if let Some(ch) = u32::from_str_radix(&cursor[drift_index..end_index], radix)
-                                      .ok().and_then(char::from_u32) {
+                    .ok()
+                    .and_then(char::from_u32)
+                {
                     buf.push(ch);
                 } else {
                     buf.push_str(&cursor[..=end_index]);
@@ -56,7 +53,7 @@ pub fn decode_entities(text: &str) -> Cow<str> {
             } else {
                 buf.push_str(&cursor[..=end_index]);
             }
-            cursor = &cursor[end_index+1..];
+            cursor = &cursor[end_index + 1..];
         } else {
             break;
         }
@@ -66,38 +63,49 @@ pub fn decode_entities(text: &str) -> Cow<str> {
     Cow::Owned(buf)
 }
 
-pub fn load_json<T, P: AsRef<Path>>(path: P) -> Result<T, Error> where for<'a> T: Deserialize<'a> {
+pub fn load_json<T, P: AsRef<Path>>(path: P) -> Result<T, Error>
+where
+    for<'a> T: Deserialize<'a>,
+{
     let file = File::open(path.as_ref())
-                    .with_context(|| format!("can't open file {}", path.as_ref().display()))?;
+        .with_context(|| format!("can't open file {}", path.as_ref().display()))?;
     let reader = BufReader::new(file);
     serde_json::from_reader(reader)
-               .with_context(|| format!("can't parse JSON from {}", path.as_ref().display()))
-               .map_err(Into::into)
+        .with_context(|| format!("can't parse JSON from {}", path.as_ref().display()))
+        .map_err(Into::into)
 }
 
-pub fn save_json<T, P: AsRef<Path>>(data: &T, path: P) -> Result<(), Error> where T: Serialize {
+pub fn save_json<T, P: AsRef<Path>>(data: &T, path: P) -> Result<(), Error>
+where
+    T: Serialize,
+{
     let file = File::create(path.as_ref())
-                    .with_context(|| format!("can't create file {}", path.as_ref().display()))?;
+        .with_context(|| format!("can't create file {}", path.as_ref().display()))?;
     let writer = BufWriter::new(file);
     serde_json::to_writer_pretty(writer, data)
-               .with_context(|| format!("can't serialize to JSON file {}", path.as_ref().display()))
-               .map_err(Into::into)
+        .with_context(|| format!("can't serialize to JSON file {}", path.as_ref().display()))
+        .map_err(Into::into)
 }
 
-pub fn load_toml<T, P: AsRef<Path>>(path: P) -> Result<T, Error> where for<'a> T: Deserialize<'a> {
+pub fn load_toml<T, P: AsRef<Path>>(path: P) -> Result<T, Error>
+where
+    for<'a> T: Deserialize<'a>,
+{
     let s = fs::read_to_string(path.as_ref())
-               .with_context(|| format!("can't read file {}", path.as_ref().display()))?;
+        .with_context(|| format!("can't read file {}", path.as_ref().display()))?;
     toml::from_str(&s)
-         .with_context(|| format!("can't parse TOML content from {}", path.as_ref().display()))
-         .map_err(Into::into)
+        .with_context(|| format!("can't parse TOML content from {}", path.as_ref().display()))
+        .map_err(Into::into)
 }
 
-pub fn save_toml<T, P: AsRef<Path>>(data: &T, path: P) -> Result<(), Error> where T: Serialize {
-    let s = toml::to_string(data)
-                 .context("can't convert to TOML format")?;
+pub fn save_toml<T, P: AsRef<Path>>(data: &T, path: P) -> Result<(), Error>
+where
+    T: Serialize,
+{
+    let s = toml::to_string(data).context("can't convert to TOML format")?;
     fs::write(path.as_ref(), &s)
-       .with_context(|| format!("can't write to file {}", path.as_ref().display()))
-       .map_err(Into::into)
+        .with_context(|| format!("can't write to file {}", path.as_ref().display()))
+        .map_err(Into::into)
 }
 
 pub trait Fingerprint {
@@ -106,8 +114,10 @@ pub trait Fingerprint {
 
 impl Fingerprint for Metadata {
     fn fingerprint(&self, epoch: SystemTime) -> io::Result<Fp> {
-        let m = self.modified()?.duration_since(epoch)
-                    .map_or_else(|e| e.duration().as_secs(), |v| v.as_secs());
+        let m = self
+            .modified()?
+            .duration_since(epoch)
+            .map_or_else(|e| e.duration().as_secs(), |v| v.as_secs());
         Ok(Fp(m.rotate_left(32) ^ self.len()))
     }
 }
@@ -166,7 +176,7 @@ impl<'de> Visitor<'de> for FpVisitor {
         E: de::Error,
     {
         Self::Value::from_str(value)
-             .map_err(|e| E::custom(format!("can't parse fingerprint: {}", e)))
+            .map_err(|e| E::custom(format!("can't parse fingerprint: {}", e)))
     }
 }
 
@@ -189,7 +199,9 @@ impl Normalize for Path {
 
         for c in self.components() {
             match c {
-                Component::ParentDir => { result.pop(); },
+                Component::ParentDir => {
+                    result.pop();
+                }
                 Component::CurDir => (),
                 _ => result.push(c),
             }
@@ -215,19 +227,24 @@ impl AsciiExtension for char {
 
 pub mod datetime_format {
     use chrono::NaiveDateTime;
-    use serde::{self, Deserialize, Serializer, Deserializer};
+    use serde::{self, Deserialize, Deserializer, Serializer};
 
     pub const FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
-    pub fn serialize<S>(date: &NaiveDateTime, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    pub fn serialize<S>(date: &NaiveDateTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         let s = format!("{}", date.format(FORMAT));
         serializer.serialize_str(&s)
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDateTime, D::Error> where D: Deserializer<'de> {
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDateTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         let s = String::deserialize(deserializer)?;
-        NaiveDateTime::parse_from_str(&s, FORMAT)
-                     .map_err(serde::de::Error::custom)
+        NaiveDateTime::parse_from_str(&s, FORMAT).map_err(serde::de::Error::custom)
     }
 }
 
@@ -238,8 +255,8 @@ pub trait IsHidden {
 impl IsHidden for DirEntry {
     fn is_hidden(&self) -> bool {
         self.file_name()
-             .to_str()
-             .map_or(false, |s| s.starts_with('.'))
+            .to_str()
+            .map_or(false, |s| s.starts_with('.'))
     }
 }
 

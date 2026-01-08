@@ -155,7 +155,7 @@ inverted = 2
 [import]
 # Start the import process when the device is unplugged from a computer.
 unshare-trigger = true
-# Start the import process when *Plato* starts.
+# Start the import process when *Kaesar* starts.
 startup-trigger = true
 # When a document changes, re-extract its metadata.
 sync-metadata = true
@@ -184,7 +184,7 @@ notify-success = true
 size = 2
 # The current pen color.
 # Possible values: 0 … 255.
-color = { gray = 0 }
+color = { grey = 0 }
 # Vary the diameter according to the pen's velocity.
 dynamic = true
 # The amplitude of the diameter variation when `dynamic` is set.

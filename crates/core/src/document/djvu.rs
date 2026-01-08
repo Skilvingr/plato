@@ -1,15 +1,15 @@
 use super::djvulibre_sys::*;
 
-use std::ptr;
-use std::rc::Rc;
-use std::path::Path;
+use super::{BoundedText, Document, Location, TextLocation, TocEntry};
+use super::{chapter, chapter_relative};
+use crate::framebuffer::Pixmap;
+use crate::geom::{Boundary, CycleDir, Rectangle};
+use crate::metadata::TextAlign;
 use std::ffi::{CStr, CString};
 use std::os::unix::ffi::OsStrExt;
-use super::{Document, Location, TextLocation, BoundedText, TocEntry};
-use super::{chapter, chapter_relative};
-use crate::metadata::TextAlign;
-use crate::framebuffer::Pixmap;
-use crate::geom::{Rectangle, Boundary, CycleDir};
+use std::path::Path;
+use std::ptr;
+use std::rc::Rc;
 
 impl Into<DjvuRect> for Rectangle {
     fn into(self) -> DjvuRect {
@@ -40,8 +40,8 @@ impl DjvuContext {
     fn handle_message(&self) {
         unsafe {
             let msg = ddjvu_message_wait(self.0);
-            if (*msg).tag == DDJVU_ERROR {
-                let msg = (*msg).u.error;
+            if (*msg).any.tag == MessageTag::DDJVU_ERROR {
+                let msg = (*msg).error;
                 let message = CStr::from_ptr(msg.message).to_string_lossy();
                 let filename = msg.filename;
                 let lineno = msg.lineno;
@@ -52,6 +52,7 @@ impl DjvuContext {
                     eprintln!("Error: {}: '{}:{}'.", message, filename, lineno);
                 }
             }
+
             ddjvu_message_pop(self.0);
         }
     }
@@ -60,7 +61,7 @@ impl DjvuContext {
 impl DjvuOpener {
     pub fn new() -> Option<DjvuOpener> {
         unsafe {
-            let name = CString::new("Plato").unwrap();
+            let name = CString::new("Kaesar").unwrap();
             let ctx = ddjvu_context_create(name.as_ptr());
             if ctx.is_null() {
                 None
@@ -74,17 +75,15 @@ impl DjvuOpener {
     pub fn open<P: AsRef<Path>>(&self, path: P) -> Option<DjvuDocument> {
         unsafe {
             let c_path = CString::new(path.as_ref().as_os_str().as_bytes()).unwrap();
-            let doc = ddjvu_document_create_by_filename_utf8((self.0).0,
-                                                             c_path.as_ptr(),
-                                                             1);
+            let doc = ddjvu_document_create_by_filename_utf8((self.0).0, c_path.as_ptr(), 1);
             if doc.is_null() {
                 return None;
             }
             let job = ddjvu_document_job(doc);
-            while ddjvu_job_status(job) < DDJVU_JOB_OK {
+            while ddjvu_job_status(job) < JobStatus::DDJVU_JOB_OK {
                 self.0.handle_message();
             }
-            if ddjvu_job_status(job) >= DDJVU_JOB_FAILED {
+            if ddjvu_job_status(job) >= JobStatus::DDJVU_JOB_FAILED {
                 None
             } else {
                 Some(DjvuDocument {
@@ -113,7 +112,9 @@ impl Document for DjvuDocument {
 
     fn pixmap(&mut self, loc: Location, scale: f32, samples: usize) -> Option<(Pixmap, usize)> {
         let index = self.resolve_location(loc)? as usize;
-        self.page(index).and_then(|page| page.pixmap(scale, samples)).map(|pixmap| (pixmap, index))
+        self.page(index)
+            .and_then(|page| page.pixmap(scale, samples))
+            .map(|pixmap| (pixmap, index))
     }
 
     fn toc(&mut self) -> Option<Vec<TocEntry>> {
@@ -138,7 +139,12 @@ impl Document for DjvuDocument {
         chapter(offset, self.pages_count(), toc)
     }
 
-    fn chapter_relative<'a>(&mut self, offset: usize, dir: CycleDir, toc: &'a [TocEntry]) -> Option<&'a TocEntry> {
+    fn chapter_relative<'a>(
+        &mut self,
+        offset: usize,
+        dir: CycleDir,
+        toc: &'a [TocEntry],
+    ) -> Option<&'a TocEntry> {
         chapter_relative(offset, dir, toc)
     }
 
@@ -176,13 +182,20 @@ impl Document for DjvuDocument {
                     let uri = miniexp_nth(1, *link);
                     let area = miniexp_nth(3, *link);
                     if miniexp_stringp(uri) == 1 && miniexp_nth(0, area) == s_rect {
-                        let text = CStr::from_ptr(miniexp_to_str(uri)).to_string_lossy().into_owned();
+                        let text = CStr::from_ptr(miniexp_to_str(uri))
+                            .to_string_lossy()
+                            .into_owned();
                         let rect = {
                             let x_min = miniexp_nth(1, area) as i32 >> 2;
                             let y_max = height - (miniexp_nth(2, area) as i32 >> 2);
                             let r_width = miniexp_nth(3, area) as i32 >> 2;
                             let r_height = miniexp_nth(4, area) as i32 >> 2;
-                            bndr![x_min as f32, (y_max - r_height) as f32, (x_min + r_width) as f32, y_max as f32]
+                            bndr![
+                                x_min as f32,
+                                (y_max - r_height) as f32,
+                                (x_min + r_width) as f32,
+                                y_max as f32
+                            ]
                         };
                         result.push(BoundedText {
                             text,
@@ -239,44 +252,35 @@ impl Document for DjvuDocument {
         false
     }
 
-    fn layout(&mut self, _width: u32, _height: u32, _font_size: f32, _dpi: u16) {
-    }
+    fn layout(&mut self, _width: u32, _height: u32, _font_size: f32, _dpi: u16) {}
 
-    fn set_text_align(&mut self, _text_align: TextAlign) {
-    }
+    fn set_text_align(&mut self, _text_align: TextAlign) {}
 
-    fn set_font_family(&mut self, _family_name: &str, _search_path: &str) {
-    }
+    fn set_font_family(&mut self, _family_name: &str, _search_path: &str) {}
 
-    fn set_margin_width(&mut self, _width: i32) {
-    }
+    fn set_margin_width(&mut self, _width: i32) {}
 
-    fn set_line_height(&mut self, _line_height: f32) {
-    }
+    fn set_line_height(&mut self, _line_height: f32) {}
 
-    fn set_hyphen_penalty(&mut self, _hyphen_penalty: i32) {
-    }
+    fn set_hyphen_penalty(&mut self, _hyphen_penalty: i32) {}
 
-    fn set_stretch_tolerance(&mut self, _stretch_tolerance: f32) {
-    }
+    fn set_stretch_tolerance(&mut self, _stretch_tolerance: f32) {}
 
-    fn set_ignore_document_css(&mut self, _ignore: bool) {
-    }
-
+    fn set_ignore_document_css(&mut self, _ignore: bool) {}
 }
 
 impl DjvuDocument {
-    pub fn page(&self, index: usize) -> Option<DjvuPage> {
+    pub fn page(&'_ self, index: usize) -> Option<DjvuPage<'_>> {
         unsafe {
             let page = ddjvu_page_create_by_pageno(self.doc, index as libc::c_int);
             if page.is_null() {
                 return None;
             }
             let job = ddjvu_page_job(page);
-            while ddjvu_job_status(job) < DDJVU_JOB_OK {
+            while ddjvu_job_status(job) < JobStatus::DDJVU_JOB_OK {
                 self.ctx.handle_message();
             }
-            if ddjvu_job_status(job) >= DDJVU_JOB_FAILED {
+            if ddjvu_job_status(job) >= JobStatus::DDJVU_JOB_FAILED {
                 None
             } else {
                 Some(DjvuPage { page, doc: self })
@@ -290,7 +294,8 @@ impl DjvuDocument {
             let page = self.page(index)?;
             let height = page.height() as i32;
             let grain = CString::new(kind).unwrap();
-            let mut exp = ddjvu_document_get_pagetext(self.doc, index as libc::c_int, grain.as_ptr());
+            let mut exp =
+                ddjvu_document_get_pagetext(self.doc, index as libc::c_int, grain.as_ptr());
             while exp == MINIEXP_DUMMY {
                 self.ctx.handle_message();
                 exp = ddjvu_document_get_pagetext(self.doc, index as libc::c_int, grain.as_ptr());
@@ -307,7 +312,14 @@ impl DjvuDocument {
         }
     }
 
-    fn walk_text(exp: *mut MiniExp, height: i32, kind: &[u8], index: usize, offset: &mut usize, data: &mut Vec<BoundedText>) {
+    fn walk_text(
+        exp: *mut MiniExp,
+        height: i32,
+        kind: &[u8],
+        index: usize,
+        offset: &mut usize,
+        data: &mut Vec<BoundedText>,
+    ) {
         unsafe {
             let len = miniexp_length(exp);
             let rect = {
@@ -356,11 +368,13 @@ impl DjvuDocument {
                 let bytes = CStr::from_ptr(raw).to_bytes();
                 // TODO: handle the case #page_name: we need to call ddjvu_document_get_fileinfo
                 // for every file and try to find a matching page_name
-                let digits = bytes.iter().map(|v| *v as u8 as char)
-                                         .filter(|c| c.is_digit(10))
-                                         .collect::<String>();
-                let location = Location::Exact(digits.parse::<usize>()
-                                                     .unwrap_or(1).saturating_sub(1));
+                let digits = bytes
+                    .iter()
+                    .map(|v| *v as u8 as char)
+                    .filter(|c| c.is_digit(10))
+                    .collect::<String>();
+                let location =
+                    Location::Exact(digits.parse::<usize>().unwrap_or(1).saturating_sub(1));
                 let current_index = *index;
                 *index += 1;
                 let children = if miniexp_length(itm) > 2 {
@@ -368,7 +382,12 @@ impl DjvuDocument {
                 } else {
                     Vec::new()
                 };
-                vec.push(TocEntry { title, location, index: current_index, children });
+                vec.push(TocEntry {
+                    title,
+                    location,
+                    index: current_index,
+                    children,
+                });
             }
             vec
         }
@@ -399,9 +418,9 @@ impl<'a> DjvuPage<'a> {
             };
 
             let style = if samples == 1 {
-                DDJVU_FORMAT_GREY8
+                FormatStyle::DDJVU_FORMAT_GREY8
             } else {
-                DDJVU_FORMAT_RGB24
+                FormatStyle::DDJVU_FORMAT_RGB24
             };
             let fmt = ddjvu_format_create(style, 0, ptr::null());
 
@@ -421,26 +440,34 @@ impl<'a> DjvuPage<'a> {
             data.resize(len, 0xff);
 
             let row_size = (samples * rect.w as usize) as libc::c_ulong;
-            ddjvu_page_render(self.page, DDJVU_RENDER_COLOR,
-                              &rect, &rect, fmt,
-                              row_size, data.as_mut_ptr());
+            ddjvu_page_render(
+                self.page,
+                RenderMode::DDJVU_RENDER_COLOR,
+                &rect,
+                &rect,
+                fmt,
+                row_size,
+                data.as_mut_ptr(),
+            );
 
             let job = ddjvu_page_job(self.page);
 
-            while ddjvu_job_status(job) < DDJVU_JOB_OK {
+            while ddjvu_job_status(job) < JobStatus::DDJVU_JOB_OK {
                 self.doc.ctx.handle_message();
             }
 
             ddjvu_format_release(fmt);
 
-            if ddjvu_job_status(job) >= DDJVU_JOB_FAILED {
+            if ddjvu_job_status(job) >= JobStatus::DDJVU_JOB_FAILED {
                 return None;
             }
 
-            Some(Pixmap { width: rect.w as u32,
-                          height: rect.h as u32,
-                          samples,
-                          data })
+            Some(Pixmap {
+                width: rect.w as u32,
+                height: rect.h as u32,
+                samples,
+                data,
+            })
         }
     }
 
@@ -463,18 +490,24 @@ impl<'a> DjvuPage<'a> {
 
 impl<'a> Drop for DjvuPage<'a> {
     fn drop(&mut self) {
-        unsafe { ddjvu_job_release(ddjvu_page_job(self.page)); }
+        unsafe {
+            ddjvu_job_release(ddjvu_page_job(self.page));
+        }
     }
 }
 
 impl Drop for DjvuDocument {
     fn drop(&mut self) {
-        unsafe { ddjvu_job_release(ddjvu_document_job(self.doc)); }
+        unsafe {
+            ddjvu_job_release(ddjvu_document_job(self.doc));
+        }
     }
 }
 
 impl Drop for DjvuContext {
     fn drop(&mut self) {
-        unsafe { ddjvu_context_release(self.0); }
+        unsafe {
+            ddjvu_context_release(self.0);
+        }
     }
 }

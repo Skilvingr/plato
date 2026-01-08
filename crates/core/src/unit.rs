@@ -20,8 +20,8 @@ pub fn in_to_px(inc: f32, dpi: u16) -> f32 {
 }
 
 #[inline]
-pub fn mm_to_px(mm: f32, dpi: u16) -> f32 {
-    mm * (dpi as f32 / MILLIMETERS_PER_INCH)
+pub fn mm_to_px(mm: f32, dpi: u16) -> i32 {
+    (mm * (dpi as f32 / MILLIMETERS_PER_INCH)) as i32
 }
 
 #[inline]

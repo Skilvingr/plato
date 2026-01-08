@@ -1,11 +1,11 @@
+use super::{Align, Bus, Event, Hub, ID_FEEDER, Id, RenderData, RenderQueue, View};
+use crate::colour::TEXT_NORMAL;
+use crate::context::Context;
 use crate::device::CURRENT_DEVICE;
-use crate::font::{Fonts, font_from_style, NORMAL_STYLE};
-use super::{View, Event, Hub, Bus, Id, ID_FEEDER, RenderQueue, RenderData, Align};
-use crate::gesture::GestureEvent;
+use crate::font::{Fonts, NORMAL_STYLE, font_from_style};
 use crate::framebuffer::{Framebuffer, UpdateMode};
 use crate::geom::Rectangle;
-use crate::color::TEXT_NORMAL;
-use crate::context::Context;
+use crate::input::gestures::GestureEvent;
 
 pub struct Label {
     id: Id,
@@ -49,20 +49,29 @@ impl Label {
 }
 
 impl View for Label {
-    fn handle_event(&mut self, evt: &Event, _hub: &Hub, bus: &mut Bus, _rq: &mut RenderQueue, _context: &mut Context) -> bool {
+    fn handle_event(
+        &mut self,
+        evt: &Event,
+        _hub: &Hub,
+        bus: &mut Bus,
+        _rq: &mut RenderQueue,
+        _context: &mut Context,
+    ) -> bool {
         match *evt {
             Event::Gesture(GestureEvent::Tap(center)) if self.rect.includes(center) => {
                 if let Some(event) = self.event.clone() {
                     bus.push_back(event);
                 }
                 true
-            },
-            Event::Gesture(GestureEvent::HoldFingerShort(center, _)) if self.rect.includes(center) => {
+            }
+            Event::Gesture(GestureEvent::HoldFingerShort(center, _))
+                if self.rect.includes(center) =>
+            {
                 if let Some(event) = self.hold_event.clone() {
                     bus.push_back(event);
                 }
                 true
-            },
+            }
             _ => false,
         }
     }
@@ -86,8 +95,14 @@ impl View for Label {
         font.render(fb, TEXT_NORMAL[1], &plan, pt);
     }
 
-    fn resize(&mut self, rect: Rectangle, _hub: &Hub, _rq: &mut RenderQueue, _context: &mut Context) {
-        if let Some(Event::ToggleNear(_, ref mut event_rect)) = self.event.as_mut() {
+    fn resize(
+        &mut self,
+        rect: Rectangle,
+        _hub: &Hub,
+        _rq: &mut RenderQueue,
+        _context: &mut Context,
+    ) {
+        if let Some(Event::ToggleNear(_, event_rect)) = self.event.as_mut() {
             *event_rect = rect;
         }
         self.rect = rect;

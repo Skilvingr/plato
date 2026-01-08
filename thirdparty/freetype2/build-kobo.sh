@@ -1,6 +1,6 @@
 #! /bin/sh
 
-export TRIPLE=arm-linux-gnueabihf
+export TRIPLE=arm-kobov4-linux-gnueabihf
 export CFLAGS="-O2 -mcpu=cortex-a9 -mfpu=neon"
 export CXXFLAGS="$CFLAGS"
 export ZLIB_CFLAGS="-I../zlib"

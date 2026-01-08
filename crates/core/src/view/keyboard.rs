@@ -1,18 +1,21 @@
-use fxhash::FxHashMap;
-use lazy_static::lazy_static;
-use serde::Deserialize;
-use crate::device::CURRENT_DEVICE;
-use crate::framebuffer::{Framebuffer, UpdateMode};
-use crate::gesture::GestureEvent;
-use crate::input::DeviceEvent;
-use super::{View, Event, Hub, Bus, Id, ID_FEEDER, RenderQueue, RenderData, KeyboardEvent, EntryId, TextKind};
+use std::sync::LazyLock;
+
 use super::key::{Key, KeyKind};
 use super::BIG_BAR_HEIGHT;
-use crate::color::KEYBOARD_BG;
-use crate::font::Fonts;
+use super::{
+    Bus, EntryId, Event, Hub, Id, KeyboardEvent, RenderData, RenderQueue, TextKind, View, ID_FEEDER,
+};
+use crate::colour::KEYBOARD_BG;
 use crate::context::Context;
+use crate::device::CURRENT_DEVICE;
+use crate::font::Fonts;
+use crate::framebuffer::{Framebuffer, UpdateMode};
 use crate::geom::Rectangle;
+use crate::input::gestures::GestureEvent;
+use crate::input::DeviceEvent;
 use crate::unit::scale_by_dpi;
+use fxhash::FxHashMap;
+use serde::Deserialize;
 
 const PADDING_RATIO: f32 = 0.06;
 
@@ -65,13 +68,17 @@ impl Keyboard {
             level += 2;
         }
 
-        let max_width = layout.widths.iter().map(|row| (row.len() + 1) as f32 * PADDING_RATIO + row.iter().sum::<f32>())
-                              .max_by(|a, b| a.partial_cmp(&b).expect("Found NaNs"))
-                              .expect("Missing row widths");
+        let max_width = layout
+            .widths
+            .iter()
+            .map(|row| (row.len() + 1) as f32 * PADDING_RATIO + row.iter().sum::<f32>())
+            .max_by(|a, b| a.partial_cmp(&b).expect("Found NaNs"))
+            .expect("Missing row widths");
 
         let kh_1 = (rect.width() as f32) / max_width;
         let rows_count = layout.keys.len();
-        let kh_2 = (rect.height() as f32) / (rows_count as f32 + PADDING_RATIO * (rows_count + 1) as f32);
+        let kh_2 =
+            (rect.height() as f32) / (rows_count as f32 + PADDING_RATIO * (rows_count + 1) as f32);
         let key_height = kh_1.min(kh_2);
         let padding = PADDING_RATIO * key_height;
 
@@ -85,7 +92,8 @@ impl Keyboard {
 
         for (i, row) in layout.keys.iter().enumerate() {
             let y = start_y + i as f32 * (padding + key_height);
-            let row_width = (layout.widths[i].len() + 1) as f32 * padding + layout.widths[i].iter().sum::<f32>() * key_height;
+            let row_width = (layout.widths[i].len() + 1) as f32 * padding
+                + layout.widths[i].iter().sum::<f32>() * key_height;
             let start_x = rect.min.x as f32 + padding + (rect.width() as f32 - row_width) / 2.0;
             let mut dx = 0.0;
             let mut dj = 0;
@@ -94,13 +102,20 @@ impl Keyboard {
                 let key_width = layout.widths[i][j] * key_height;
                 let x = start_x + dx;
                 dx += key_width + padding;
-                let key_rect = rect![x.round() as i32,
-                                     y.round() as i32,
-                                     (x + key_width).round() as i32,
-                                     (y + key_height).round() as i32];
+                let key_rect = rect![
+                    x.round() as i32,
+                    y.round() as i32,
+                    (x + key_width).round() as i32,
+                    (y + key_height).round() as i32
+                ];
                 let kind = match kind {
-                    KeyKind::Output(c) if *c != ' ' => KeyKind::Output(layout.outputs[level][i][j-dj]),
-                    _ => { dj = j + 1; *kind },
+                    KeyKind::Output(c) if *c != ' ' => {
+                        KeyKind::Output(layout.outputs[level][i][j - dj])
+                    }
+                    _ => {
+                        dj = j + 1;
+                        *kind
+                    }
                 };
                 let mut key = Key::new(key_rect, kind);
                 if number && kind == KeyKind::Alternate {
@@ -139,7 +154,7 @@ impl Keyboard {
             for (j, kind) in row.iter().enumerate() {
                 if kind.is_variable_output() {
                     if let Some(child) = self.children[index].downcast_mut::<Key>() {
-                        let ch = self.layout.outputs[level][i][j-dj];
+                        let ch = self.layout.outputs[level][i][j - dj];
                         child.update(KeyKind::Output(ch), rq);
                     }
                 } else {
@@ -194,11 +209,17 @@ impl Keyboard {
             }
         }
     }
-
 }
 
 impl View for Keyboard {
-    fn handle_event(&mut self, evt: &Event, hub: &Hub, _bus: &mut Bus, rq: &mut RenderQueue, context: &mut Context) -> bool {
+    fn handle_event(
+        &mut self,
+        evt: &Event,
+        hub: &Hub,
+        _bus: &mut Bus,
+        rq: &mut RenderQueue,
+        context: &mut Context,
+    ) -> bool {
         match *evt {
             Event::Key(k) => {
                 match k {
@@ -207,7 +228,9 @@ impl View for Keyboard {
                             self.combine_buffer.push(ch);
                             hub.send(Event::Keyboard(KeyboardEvent::Partial(ch))).ok();
                             if self.combine_buffer.len() > 1 {
-                                if let Some(&ch) = DEFAULT_COMBINATIONS.get(&self.combine_buffer[..]) {
+                                if let Some(&ch) =
+                                    DEFAULT_COMBINATIONS.get(&self.combine_buffer[..])
+                                {
                                     hub.send(Event::Keyboard(KeyboardEvent::Append(ch))).ok();
                                 }
                                 self.release_combine(rq);
@@ -224,15 +247,27 @@ impl View for Keyboard {
                         if self.state.shift != 2 {
                             self.update(rq);
                         }
-                    },
+                    }
                     KeyKind::Alternate => {
                         self.state.alternate = (self.state.alternate + 1) % 3;
                         if self.state.alternate != 2 {
                             self.update(rq);
                         }
-                    },
-                    KeyKind::Delete(dir) => { hub.send(Event::Keyboard(KeyboardEvent::Delete { target: TextKind::Char, dir })).ok(); },
-                    KeyKind::Move(dir) => { hub.send(Event::Keyboard(KeyboardEvent::Move { target: TextKind::Char, dir })).ok(); },
+                    }
+                    KeyKind::Delete(dir) => {
+                        hub.send(Event::Keyboard(KeyboardEvent::Delete {
+                            target: TextKind::Char,
+                            dir,
+                        }))
+                        .ok();
+                    }
+                    KeyKind::Move(dir) => {
+                        hub.send(Event::Keyboard(KeyboardEvent::Move {
+                            target: TextKind::Char,
+                            dir,
+                        }))
+                        .ok();
+                    }
                     KeyKind::Combine => self.state.combine = !self.state.combine,
                     KeyKind::Return => {
                         self.release_combine(rq);
@@ -240,7 +275,7 @@ impl View for Keyboard {
                     }
                 };
                 true
-            },
+            }
             Event::Select(EntryId::SetKeyboardLayout(ref name)) => {
                 if *name != context.settings.keyboard_layout {
                     context.settings.keyboard_layout = name.to_string();
@@ -250,21 +285,29 @@ impl View for Keyboard {
                     rq.add(RenderData::new(self.id, self.rect, UpdateMode::Gui));
                 }
                 true
-            },
-            Event::Gesture(GestureEvent::Tap(center)) |
-            Event::Gesture(GestureEvent::HoldFingerShort(center, ..)) if self.rect.includes(center) => true,
+            }
+            Event::Gesture(GestureEvent::Tap(center))
+            | Event::Gesture(GestureEvent::HoldFingerShort(center, ..))
+                if self.rect.includes(center) =>
+            {
+                true
+            }
             Event::Gesture(GestureEvent::Swipe { start, .. }) if self.rect.includes(start) => true,
-            Event::Device(DeviceEvent::Finger { position, .. }) if self.rect.includes(position) => true,
+            Event::Device(DeviceEvent::Finger { position, .. }) if self.rect.includes(position) => {
+                true
+            }
             _ => false,
         }
     }
 
     fn might_skip(&self, evt: &Event) -> bool {
-        !matches!(*evt,
-                  Event::Key(..) |
-                  Event::Gesture(..) |
-                  Event::Device(DeviceEvent::Finger { .. }) |
-                  Event::Select(..))
+        !matches!(
+            *evt,
+            Event::Key(..)
+                | Event::Gesture(..)
+                | Event::Device(DeviceEvent::Finger { .. })
+                | Event::Select(..)
+        )
     }
 
     fn render(&self, fb: &mut dyn Framebuffer, rect: Rectangle, _fonts: &mut Fonts) {
@@ -280,19 +323,29 @@ impl View for Keyboard {
     }
 
     fn render_rect(&self, rect: &Rectangle) -> Rectangle {
-        rect.intersection(&self.rect)
-            .unwrap_or(self.rect)
+        rect.intersection(&self.rect).unwrap_or(self.rect)
     }
 
-    fn resize(&mut self, mut rect: Rectangle, hub: &Hub, rq: &mut RenderQueue, context: &mut Context) {
+    fn resize(
+        &mut self,
+        mut rect: Rectangle,
+        hub: &Hub,
+        rq: &mut RenderQueue,
+        context: &mut Context,
+    ) {
         let dpi = CURRENT_DEVICE.dpi;
-        let max_width = self.layout.widths.iter().map(|row| (row.len() + 1) as f32 * PADDING_RATIO + row.iter().sum::<f32>())
-                            .max_by(|a, b| a.partial_cmp(b).expect("Found NaNs"))
-                            .expect("Missing row widths");
+        let max_width = self
+            .layout
+            .widths
+            .iter()
+            .map(|row| (row.len() + 1) as f32 * PADDING_RATIO + row.iter().sum::<f32>())
+            .max_by(|a, b| a.partial_cmp(b).expect("Found NaNs"))
+            .expect("Missing row widths");
 
         let kh_1 = (rect.width() as f32) / max_width;
         let rows_count = self.layout.keys.len();
-        let kh_2 = (rect.height() as f32) / (rows_count as f32 + PADDING_RATIO * (rows_count + 1) as f32);
+        let kh_2 =
+            (rect.height() as f32) / (rows_count as f32 + PADDING_RATIO * (rows_count + 1) as f32);
         let key_height = kh_1.min(kh_2);
         let padding = PADDING_RATIO * key_height;
 
@@ -306,7 +359,8 @@ impl View for Keyboard {
 
         for (i, row) in self.layout.keys.iter().enumerate() {
             let y = start_y + i as f32 * (padding + key_height);
-            let row_width = (self.layout.widths[i].len() + 1) as f32 * padding + self.layout.widths[i].iter().sum::<f32>() * key_height;
+            let row_width = (self.layout.widths[i].len() + 1) as f32 * padding
+                + self.layout.widths[i].iter().sum::<f32>() * key_height;
             let start_x = rect.min.x as f32 + padding + (rect.width() as f32 - row_width) / 2.0;
             let mut dx = 0.0;
 
@@ -314,10 +368,12 @@ impl View for Keyboard {
                 let key_width = self.layout.widths[i][j] * key_height;
                 let x = start_x + dx;
                 dx += key_width + padding;
-                let key_rect = rect![x.round() as i32,
-                                     y.round() as i32,
-                                     (x + key_width).round() as i32,
-                                     (y + key_height).round() as i32];
+                let key_rect = rect![
+                    x.round() as i32,
+                    y.round() as i32,
+                    (x + key_width).round() as i32,
+                    (y + key_height).round() as i32
+                ];
                 self.children[index].resize(key_rect, hub, rq, context);
                 index += 1;
             }
@@ -352,155 +408,153 @@ impl View for Keyboard {
     }
 }
 
-lazy_static! {
-    // Most of the combination sequences come from X.org.
-    // The chosen characters come from the layout described by
-    // Robert Bringhurst in *The Elements of Typographic Style*,
-    // version 3.1, p. 92.
-    pub static ref DEFAULT_COMBINATIONS: FxHashMap<&'static str, char> = {
-        let mut m = FxHashMap::default();
-        m.insert("oe", 'œ');
-        m.insert("Oe", 'Œ');
-        m.insert("ae", 'æ');
-        m.insert("AE", 'Æ');
-        m.insert("c,", 'ç');
-        m.insert("C,", 'Ç');
-        m.insert("a;", 'ą');
-        m.insert("e;", 'ę');
-        m.insert("A;", 'Ą');
-        m.insert("E;", 'Ę');
-        m.insert("a~", 'ã');
-        m.insert("o~", 'õ');
-        m.insert("n~", 'ñ');
-        m.insert("A~", 'Ã');
-        m.insert("O~", 'Õ');
-        m.insert("N~", 'Ñ');
-        m.insert("a'", 'á');
-        m.insert("e'", 'é');
-        m.insert("i'", 'í');
-        m.insert("o'", 'ó');
-        m.insert("u'", 'ú');
-        m.insert("y'", 'ý');
-        m.insert("z'", 'ź');
-        m.insert("s'", 'ś');
-        m.insert("c'", 'ć');
-        m.insert("n'", 'ń');
-        m.insert("A'", 'Á');
-        m.insert("E'", 'É');
-        m.insert("I'", 'Í');
-        m.insert("O'", 'Ó');
-        m.insert("U'", 'Ú');
-        m.insert("Y'", 'Ý');
-        m.insert("Z'", 'Ź');
-        m.insert("S'", 'Ś');
-        m.insert("C'", 'Ć');
-        m.insert("N'", 'Ń');
-        m.insert("a`", 'à');
-        m.insert("e`", 'è');
-        m.insert("i`", 'ì');
-        m.insert("o`", 'ò');
-        m.insert("u`", 'ù');
-        m.insert("A`", 'À');
-        m.insert("E`", 'È');
-        m.insert("I`", 'Ì');
-        m.insert("O`", 'Ò');
-        m.insert("U`", 'Ù');
-        m.insert("a^", 'â');
-        m.insert("e^", 'ê');
-        m.insert("i^", 'î');
-        m.insert("o^", 'ô');
-        m.insert("u^", 'û');
-        m.insert("w^", 'ŵ');
-        m.insert("y^", 'ŷ');
-        m.insert("A^", 'Â');
-        m.insert("E^", 'Ê');
-        m.insert("I^", 'Î');
-        m.insert("O^", 'Ô');
-        m.insert("U^", 'Û');
-        m.insert("W^", 'Ŵ');
-        m.insert("Y^", 'Ŷ');
-        m.insert("a:", 'ä');
-        m.insert("e:", 'ë');
-        m.insert("i:", 'ï');
-        m.insert("o:", 'ö');
-        m.insert("u:", 'ü');
-        m.insert("y:", 'ÿ');
-        m.insert("A:", 'Ä');
-        m.insert("E:", 'Ë');
-        m.insert("I:", 'Ï');
-        m.insert("O:", 'Ö');
-        m.insert("U:", 'Ü');
-        m.insert("Y:", 'Ÿ');
-        m.insert("u\"", 'ű');
-        m.insert("o\"", 'ő');
-        m.insert("U\"", 'Ű');
-        m.insert("O\"", 'Ő');
-        m.insert("z.", 'ż');
-        m.insert("Z.", 'Ż');
-        m.insert("th", 'þ');
-        m.insert("Th", 'Þ');
-        m.insert("ao", 'å');
-        m.insert("Ao", 'Å');
-        m.insert("l/", 'ł');
-        m.insert("d/", 'đ');
-        m.insert("o/", 'ø');
-        m.insert("L/", 'Ł');
-        m.insert("D/", 'Đ');
-        m.insert("O/", 'Ø');
-        m.insert("mu", 'µ');
-        m.insert("l-", '£');
-        m.insert("pp", '¶');
-        m.insert("so", '§');
-        m.insert("|-", '†');
-        m.insert("|=", '‡');
-        m.insert("ss", 'ß');
-        m.insert("Ss", 'ẞ');
-        m.insert("o_", 'º');
-        m.insert("a_", 'ª');
-        m.insert("oo", '°');
-        m.insert("!!", '¡');
-        m.insert("??", '¿');
-        m.insert(".-", '·');
-        m.insert(".=", '•');
-        m.insert(".>", '›');
-        m.insert(".<", '‹');
-        m.insert("'1", '′');
-        m.insert("'2", '″');
-        m.insert("[[", '⟦');
-        m.insert("]]", '⟧');
-        m.insert("+-", '±');
-        m.insert("-:", '÷');
-        m.insert("<=", '≤');
-        m.insert(">=", '≥');
-        m.insert("=/", '≠');
-        m.insert("-,", '¬');
-        m.insert("~~", '≈');
-        m.insert("<<", '«');
-        m.insert(">>", '»');
-        m.insert("12", '½');
-        m.insert("13", '⅓');
-        m.insert("23", '⅔');
-        m.insert("14", '¼');
-        m.insert("34", '¾');
-        m.insert("15", '⅕');
-        m.insert("25", '⅖');
-        m.insert("35", '⅗');
-        m.insert("45", '⅘');
-        m.insert("16", '⅙');
-        m.insert("56", '⅚');
-        m.insert("18", '⅛');
-        m.insert("38", '⅜');
-        m.insert("58", '⅝');
-        m.insert("78", '⅞');
-        m.insert("#f", '♭');
-        m.insert("#n", '♮');
-        m.insert("#s", '♯');
-        m.insert("%o", '‰');
-        m.insert("e=", '€');
-        m.insert("or", '®');
-        m.insert("oc", '©');
-        m.insert("op", '℗');
-        m.insert("tm", '™');
-        m
-    };
-}
+// Most of the combination sequences come from X.org.
+// The chosen characters come from the layout described by
+// Robert Bringhurst in *The Elements of Typographic Style*,
+// version 3.1, p. 92.
+pub static DEFAULT_COMBINATIONS: LazyLock<FxHashMap<&'static str, char>> = LazyLock::new(|| {
+    let mut m = FxHashMap::default();
+    m.insert("oe", 'œ');
+    m.insert("Oe", 'Œ');
+    m.insert("ae", 'æ');
+    m.insert("AE", 'Æ');
+    m.insert("c,", 'ç');
+    m.insert("C,", 'Ç');
+    m.insert("a;", 'ą');
+    m.insert("e;", 'ę');
+    m.insert("A;", 'Ą');
+    m.insert("E;", 'Ę');
+    m.insert("a~", 'ã');
+    m.insert("o~", 'õ');
+    m.insert("n~", 'ñ');
+    m.insert("A~", 'Ã');
+    m.insert("O~", 'Õ');
+    m.insert("N~", 'Ñ');
+    m.insert("a'", 'á');
+    m.insert("e'", 'é');
+    m.insert("i'", 'í');
+    m.insert("o'", 'ó');
+    m.insert("u'", 'ú');
+    m.insert("y'", 'ý');
+    m.insert("z'", 'ź');
+    m.insert("s'", 'ś');
+    m.insert("c'", 'ć');
+    m.insert("n'", 'ń');
+    m.insert("A'", 'Á');
+    m.insert("E'", 'É');
+    m.insert("I'", 'Í');
+    m.insert("O'", 'Ó');
+    m.insert("U'", 'Ú');
+    m.insert("Y'", 'Ý');
+    m.insert("Z'", 'Ź');
+    m.insert("S'", 'Ś');
+    m.insert("C'", 'Ć');
+    m.insert("N'", 'Ń');
+    m.insert("a`", 'à');
+    m.insert("e`", 'è');
+    m.insert("i`", 'ì');
+    m.insert("o`", 'ò');
+    m.insert("u`", 'ù');
+    m.insert("A`", 'À');
+    m.insert("E`", 'È');
+    m.insert("I`", 'Ì');
+    m.insert("O`", 'Ò');
+    m.insert("U`", 'Ù');
+    m.insert("a^", 'â');
+    m.insert("e^", 'ê');
+    m.insert("i^", 'î');
+    m.insert("o^", 'ô');
+    m.insert("u^", 'û');
+    m.insert("w^", 'ŵ');
+    m.insert("y^", 'ŷ');
+    m.insert("A^", 'Â');
+    m.insert("E^", 'Ê');
+    m.insert("I^", 'Î');
+    m.insert("O^", 'Ô');
+    m.insert("U^", 'Û');
+    m.insert("W^", 'Ŵ');
+    m.insert("Y^", 'Ŷ');
+    m.insert("a:", 'ä');
+    m.insert("e:", 'ë');
+    m.insert("i:", 'ï');
+    m.insert("o:", 'ö');
+    m.insert("u:", 'ü');
+    m.insert("y:", 'ÿ');
+    m.insert("A:", 'Ä');
+    m.insert("E:", 'Ë');
+    m.insert("I:", 'Ï');
+    m.insert("O:", 'Ö');
+    m.insert("U:", 'Ü');
+    m.insert("Y:", 'Ÿ');
+    m.insert("u\"", 'ű');
+    m.insert("o\"", 'ő');
+    m.insert("U\"", 'Ű');
+    m.insert("O\"", 'Ő');
+    m.insert("z.", 'ż');
+    m.insert("Z.", 'Ż');
+    m.insert("th", 'þ');
+    m.insert("Th", 'Þ');
+    m.insert("ao", 'å');
+    m.insert("Ao", 'Å');
+    m.insert("l/", 'ł');
+    m.insert("d/", 'đ');
+    m.insert("o/", 'ø');
+    m.insert("L/", 'Ł');
+    m.insert("D/", 'Đ');
+    m.insert("O/", 'Ø');
+    m.insert("mu", 'µ');
+    m.insert("l-", '£');
+    m.insert("pp", '¶');
+    m.insert("so", '§');
+    m.insert("|-", '†');
+    m.insert("|=", '‡');
+    m.insert("ss", 'ß');
+    m.insert("Ss", 'ẞ');
+    m.insert("o_", 'º');
+    m.insert("a_", 'ª');
+    m.insert("oo", '°');
+    m.insert("!!", '¡');
+    m.insert("??", '¿');
+    m.insert(".-", '·');
+    m.insert(".=", '•');
+    m.insert(".>", '›');
+    m.insert(".<", '‹');
+    m.insert("'1", '′');
+    m.insert("'2", '″');
+    m.insert("[[", '⟦');
+    m.insert("]]", '⟧');
+    m.insert("+-", '±');
+    m.insert("-:", '÷');
+    m.insert("<=", '≤');
+    m.insert(">=", '≥');
+    m.insert("=/", '≠');
+    m.insert("-,", '¬');
+    m.insert("~~", '≈');
+    m.insert("<<", '«');
+    m.insert(">>", '»');
+    m.insert("12", '½');
+    m.insert("13", '⅓');
+    m.insert("23", '⅔');
+    m.insert("14", '¼');
+    m.insert("34", '¾');
+    m.insert("15", '⅕');
+    m.insert("25", '⅖');
+    m.insert("35", '⅗');
+    m.insert("45", '⅘');
+    m.insert("16", '⅙');
+    m.insert("56", '⅚');
+    m.insert("18", '⅛');
+    m.insert("38", '⅜');
+    m.insert("58", '⅝');
+    m.insert("78", '⅞');
+    m.insert("#f", '♭');
+    m.insert("#n", '♮');
+    m.insert("#s", '♯');
+    m.insert("%o", '‰');
+    m.insert("e=", '€');
+    m.insert("or", '®');
+    m.insert("oc", '©');
+    m.insert("op", '℗');
+    m.insert("tm", '™');
+    m
+});

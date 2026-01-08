@@ -1,18 +1,18 @@
 [package]
 authors = ["Bastien Dejean <nihilhill@gmail.com>"]
 name = "fetcher"
-version = "0.9.44"
-edition = "2021"
+version = "0.1.0"
+edition = "2024"
 
 [[bin]]
 name = "article_fetcher"
 path = "src/main.rs"
 
 [dependencies]
-plato-core = { path = "../core" }
-signal-hook = "0.3.17"
+kaesar-core = { path = "../core" }
+signal-hook = "0.4.1"
 
 [dependencies.reqwest]
-version = "0.12.9"
-features = ["rustls-tls", "json", "blocking"]
+version = "0.13.1"
+features = ["rustls", "json", "blocking", "query"]
 default-features = false

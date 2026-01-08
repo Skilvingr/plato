@@ -17,17 +17,19 @@ pub const FT_GLYPH_BBOX_UNSCALED: GlyphBBoxMode = 0;
 pub const FT_GLYPH_BBOX_PIXELS: GlyphBBoxMode = 3;
 
 pub type FtError = libc::c_int;
+pub type FtShort = libc::c_short;
+pub type FtString = libc::c_char;
 pub type FtByte = libc::c_uchar;
 pub type FtF26Dot6 = libc::c_long;
 pub type FtPos = libc::c_long;
 pub type FtFixed = libc::c_long;
 pub type FtGlyphFormat = libc::c_uint;
 pub type GlyphBBoxMode = libc::c_uint;
-pub type FtGenericFinalizer = extern fn(*mut libc::c_void);
+pub type FtGenericFinalizer = extern "C" fn(*mut libc::c_void);
 
 pub enum FtLibrary {}
 pub enum FtCharMap {}
-pub enum FtSizeInternal {}
+pub enum FtSizeInternalRec {}
 pub enum FtSlotInternal {}
 pub enum FtFaceInternal {}
 pub enum FtListNode {}
@@ -35,25 +37,51 @@ pub enum FtDriver {}
 pub enum FtMemory {}
 pub enum FtStream {}
 
-#[link(name="freetype")]
-extern {
+#[link(name = "freetype")]
+unsafe extern "C" {
     pub fn FT_Init_FreeType(lib: *mut *mut FtLibrary) -> FtError;
     pub fn FT_Done_FreeType(lib: *mut FtLibrary) -> FtError;
-    pub fn FT_New_Face(lib: *mut FtLibrary, path: *const libc::c_char, idx: libc::c_long, face: *mut *mut FtFace) -> FtError;
-    pub fn FT_New_Memory_Face(lib: *mut FtLibrary, buf: *const FtByte, len: libc::c_long, idx: libc::c_long, face: *mut *mut FtFace) -> FtError;
-    pub fn FT_Done_Face(face: *mut FtFace) -> FtError;
-    pub fn FT_Set_Char_Size(face: *mut FtFace, sx: FtF26Dot6, sy: FtF26Dot6, rx: libc::c_uint, ry: libc::c_uint) -> FtError;
-    pub fn FT_Set_Pixel_Sizes(face: *mut FtFace, sx: libc::c_uint, sy: libc::c_uint) -> FtError;
-    pub fn FT_Load_Glyph(face: *const FtFace, idx: libc::c_uint, flags: i32) -> FtError;
-    pub fn FT_Load_Char(face: *const FtFace, code: libc::c_ulong, flags: i32) -> FtError;
-    pub fn FT_Get_Char_Index(face: *const FtFace, code: libc::c_ulong) -> libc::c_uint;
-    pub fn FT_Get_MM_Var(face: *const FtFace, varia: *mut *mut FtMmVar) -> FtError;
+    pub fn FT_New_Face(
+        lib: *mut FtLibrary,
+        path: *const libc::c_char,
+        idx: libc::c_long,
+        face: *mut *mut FtFaceRec,
+    ) -> FtError;
+    pub fn FT_New_Memory_Face(
+        lib: *mut FtLibrary,
+        buf: *const FtByte,
+        len: libc::c_long,
+        idx: libc::c_long,
+        face: *mut *mut FtFaceRec,
+    ) -> FtError;
+    pub fn FT_Done_Face(face: *mut FtFaceRec) -> FtError;
+    pub fn FT_Set_Char_Size(
+        face: *mut FtFaceRec,
+        sx: FtF26Dot6,
+        sy: FtF26Dot6,
+        rx: libc::c_uint,
+        ry: libc::c_uint,
+    ) -> FtError;
+    pub fn FT_Set_Pixel_Sizes(face: *mut FtFaceRec, sx: libc::c_uint, sy: libc::c_uint) -> FtError;
+    pub fn FT_Load_Glyph(face: *const FtFaceRec, idx: libc::c_uint, flags: i32) -> FtError;
+    pub fn FT_Load_Char(face: *const FtFaceRec, code: libc::c_ulong, flags: i32) -> FtError;
+    pub fn FT_Get_Char_Index(face: *const FtFaceRec, code: libc::c_ulong) -> libc::c_uint;
+    pub fn FT_Get_MM_Var(face: *const FtFaceRec, varia: *mut *mut FtMmVar) -> FtError;
     pub fn FT_Done_MM_Var(lib: *mut FtLibrary, varia: *mut FtMmVar) -> FtError;
-    pub fn FT_Set_Var_Design_Coordinates(face: *mut FtFace, num_coords: libc::c_uint, coords: *const FtFixed) -> FtError;
-    pub fn FT_Get_Sfnt_Name_Count(face: *const FtFace) -> libc::c_uint;
-    pub fn FT_Get_Sfnt_Name(face: *const FtFace, idx: libc::c_uint, name: *mut FtSfntName) -> FtError;
+    pub fn FT_Set_Var_Design_Coordinates(
+        face: *mut FtFaceRec,
+        num_coords: libc::c_uint,
+        coords: *const FtFixed,
+    ) -> FtError;
+    pub fn FT_Get_Sfnt_Name_Count(face: *const FtFaceRec) -> libc::c_uint;
+    pub fn FT_Get_Sfnt_Name(
+        face: *const FtFaceRec,
+        idx: libc::c_uint,
+        name: *mut FtSfntName,
+    ) -> FtError;
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtMmVar {
@@ -64,10 +92,11 @@ pub struct FtMmVar {
     pub namedstyle: *mut FtNamedStyle,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtVarAxis {
-    name: *mut libc::c_char,
+    name: *mut FtString,
     pub minimum: FtFixed,
     pub def: FtFixed,
     pub maximum: FtFixed,
@@ -75,6 +104,7 @@ pub struct FtVarAxis {
     strid: libc::c_uint,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtNamedStyle {
@@ -83,6 +113,7 @@ pub struct FtNamedStyle {
     psid: libc::c_uint,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtSfntName {
@@ -91,21 +122,21 @@ pub struct FtSfntName {
     pub language_id: libc::c_ushort,
     pub name_id: libc::c_ushort,
 
-    pub text: *const FtByte,
+    pub text: *mut FtByte,
     pub len: libc::c_uint,
 }
-
 impl Default for FtSfntName {
     fn default() -> Self {
         unsafe { mem::zeroed() }
     }
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtBitmapSize {
-    height: libc::c_short,
-    width: libc::c_short,
+    height: FtShort,
+    width: FtShort,
 
     size: FtPos,
 
@@ -113,14 +144,16 @@ pub struct FtBitmapSize {
     y_ppem: FtPos,
 }
 
+// OK
 #[repr(C)]
-pub struct FtSize {
-    face: *mut FtFace,
+pub struct FtSizeRec {
+    face: *mut FtFaceRec,
     generic: FtGeneric,
     pub metrics: FtSizeMetrics,
-    internal: *mut FtSizeInternal,
+    internal: *mut FtSizeInternalRec,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtSizeMetrics {
@@ -133,9 +166,10 @@ pub struct FtSizeMetrics {
     pub ascender: FtPos,
     pub descender: FtPos,
     pub height: FtPos,
-    max_advance: FtPos
+    max_advance: FtPos,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtGeneric {
@@ -143,6 +177,7 @@ pub struct FtGeneric {
     finalizer: FtGenericFinalizer,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtVector {
@@ -150,6 +185,7 @@ pub struct FtVector {
     y: FtPos,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtBBox {
@@ -159,19 +195,21 @@ pub struct FtBBox {
     y_max: FtPos,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtBitmap {
-    pub rows: libc::c_int,
-    pub width: libc::c_int,
+    pub rows: libc::c_uint,
+    pub width: libc::c_uint,
     pub pitch: libc::c_int,
     pub buffer: *mut libc::c_uchar,
-    num_grays: libc::c_short,
-    pixel_mode: libc::c_char,
-    palette_mode: libc::c_char,
+    num_grays: libc::c_ushort,
+    pixel_mode: libc::c_uchar,
+    palette_mode: libc::c_uchar,
     palette: *mut libc::c_void,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtGlyphMetrics {
@@ -187,25 +225,27 @@ pub struct FtGlyphMetrics {
     vert_advance: FtPos,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
 pub struct FtOutline {
-    n_contours: libc::c_short,
-    n_points: libc::c_short,
+    n_contours: libc::c_ushort,
+    n_points: libc::c_ushort,
 
     points: *mut FtVector,
-    tags: *mut libc::c_char,
-    contours: *mut libc::c_short,
+    tags: *mut libc::c_uchar,
+    contours: *mut libc::c_ushort,
 
     flags: libc::c_int,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
-pub struct FtGlyphSlot {
+pub struct FtGlyphSlotRec {
     library: *mut FtLibrary,
-    face: *mut FtFace,
-    next: *mut FtGlyphSlot,
+    face: *mut FtFaceRec,
+    next: *mut FtGlyphSlotRec,
     reserved: libc::c_uint,
     generic: FtGeneric,
 
@@ -225,6 +265,7 @@ pub struct FtGlyphSlot {
     num_subglyphs: libc::c_uint,
     subglyphs: *mut libc::c_void,
 
+    // SubGlyphRec
     control_data: *mut libc::c_void,
     control_len: libc::c_long,
 
@@ -236,16 +277,18 @@ pub struct FtGlyphSlot {
     internal: *mut FtSlotInternal,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
-pub struct FtList {
+pub struct FtListRec {
     head: *mut FtListNode,
     tail: *mut FtListNode,
 }
 
+// OK
 #[repr(C)]
 #[derive(Debug)]
-pub struct FtFace {
+pub struct FtFaceRec {
     num_faces: libc::c_long,
     face_index: libc::c_long,
 
@@ -254,8 +297,8 @@ pub struct FtFace {
 
     num_glyphs: libc::c_long,
 
-    pub family_name: *mut libc::c_char,
-    pub style_name: *mut libc::c_char,
+    pub family_name: *mut FtString,
+    pub style_name: *mut FtString,
 
     num_fixed_sizes: libc::c_int,
     available_sizes: *mut FtBitmapSize,
@@ -278,15 +321,15 @@ pub struct FtFace {
     underline_position: libc::c_short,
     underline_thickness: libc::c_short,
 
-    pub glyph: *mut FtGlyphSlot,
-    pub size: *mut FtSize,
+    pub glyph: *mut FtGlyphSlotRec,
+    pub size: *mut FtSizeRec,
     charmap: *mut FtCharMap,
 
     driver: *mut FtDriver,
     memory: *mut FtMemory,
     stream: *mut FtStream,
 
-    sizes_list: FtList,
+    sizes_list: FtListRec,
 
     autohint: FtGeneric,
     extensions: *mut libc::c_void,

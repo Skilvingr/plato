@@ -1,0 +1,104 @@
+selected-library = 0
+keyboard-layout = "English"
+frontlight = true
+wifi = false
+ssh = false
+inverted = false
+sleep-cover = true
+auto-share = false
+button-scheme = "natural"
+auto-suspend = 1.0
+auto-power-off = 3.0
+time-format = "%H:%M"
+date-format = "%A, %B %-d, %Y"
+external-urls-queue = "bin/article_fetcher/urls.txt"
+
+[[libraries]]
+name = "Example"
+path = "./emulator_sysroot"
+mode = "database"
+sort-method = "opened"
+first-column = "title-and-author"
+second-column = "progress"
+thumbnail-previews = true
+
+[intermissions]
+suspend = "logo:"
+power-off = "logo:"
+reboot = "logo:"
+share = "logo:"
+
+[home]
+address-bar = false
+navigation-bar = true
+max-levels = 3
+max-trash-size = 33554432
+
+[reader]
+finished = "close"
+south-east-corner = "go-to-page"
+bottom-right-gesture = "toggle-dithered"
+south-strip = "toggle-bars"
+west-strip = "previous-page"
+east-strip = "next-page"
+strip-width = 0.6000000238418579
+corner-width = 0.4000000059604645
+ext-font-path = "/mnt/onboard/fonts"
+font-family = "Libertinus Serif"
+font-size = 11.0
+min-font-size = 5.5
+max-font-size = 22.0
+text-align = "left"
+margin-width = 8
+min-margin-width = 0
+max-margin-width = 10
+line-height = 1.2000000476837158
+continuous-fit-to-width = true
+ignore-document-css = false
+dithered-kinds = ["cbz", "jpg", "png", "jpeg"]
+
+[reader.paragraph-breaker]
+hyphen-penalty = 50
+stretch-tolerance = 1.2599999904632568
+
+[reader.refresh-rate]
+regular = 8
+inverted = 2
+
+[import]
+unshare-trigger = true
+startup-trigger = true
+sync-metadata = true
+metadata-kinds = ["djvu", "epub", "pdf"]
+allowed-kinds = ["djvu", "mobi", "fb2", "txt", "cbz", "xps", "oxps", "pdf", "epub"]
+
+[dictionary]
+margin-width = 4
+font-size = 11.0
+
+[sketch]
+save-path = "Sketches"
+notify-success = true
+
+[sketch.pen]
+size = 2
+dynamic = true
+amplitude = 4.0
+min-speed = 0.0
+max-speed = 1670.0
+
+[sketch.pen.color]
+grey = 0
+
+[calculator]
+font-size = 8.0
+margin-width = 2
+history-size = 4096
+
+[battery]
+warn = 10
+power-off = 3
+
+[frontlight-levels]
+intensity = 0.0
+warmth = 0.0

@@ -1,13 +1,14 @@
 [package]
-authors = ["Bastien Dejean <nihilhill@gmail.com>"]
+authors = ["Skilfingr <skilvingr@gmail.com>"]
 name = "emulator"
-version = "0.9.44"
-edition = "2021"
+version = "0.1.0"
+edition = "2024"
 
 [[bin]]
-name = "plato-emulator"
+name = "kaesar-emulator"
 path = "src/main.rs"
 
 [dependencies]
-plato-core = { path = "../core" }
-sdl2 = "0.37.0"
+kaesar-core = { path = "../core", features = ["sim"] }
+kaesar = { path = "../kaesar", features = ["sim"] }
+sdl2 = "0.38.0"

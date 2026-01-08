@@ -7,15 +7,16 @@ declare -A urls=(
 	# Images
 	["libpng"]="https://download.sourceforge.net/libpng/libpng-1.6.43.tar.gz"
 	["libjpeg"]="http://www.ijg.org/files/jpegsrc.v9f.tar.gz"
-	["openjpeg"]="https://github.com/uclouvain/openjpeg/archive/v2.5.2.tar.gz"
+	["openjpeg"]="https://github.com/uclouvain/openjpeg/archive/v2.5.3.tar.gz"
 	["jbig2dec"]="https://github.com/ArtifexSoftware/jbig2dec/releases/download/0.20/jbig2dec-0.20.tar.gz"
 	# Fonts
-	["freetype2"]="https://download.savannah.gnu.org/releases/freetype/freetype-2.13.2.tar.gz"
+	# kee in sync with mupdf's version
+	["freetype2"]="https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.gz"
 	["harfbuzz"]="https://github.com/harfbuzz/harfbuzz/archive/8.4.0.tar.gz"
 	# Documents
 	["gumbo"]="https://github.com/google/gumbo-parser/archive/v0.10.1.tar.gz"
 	["djvulibre"]="http://downloads.sourceforge.net/djvu/djvulibre-3.5.28.tar.gz"
-	["mupdf"]="https://mupdf.com/downloads/archive/mupdf-1.23.11-source.tar.gz"
+	["mupdf"]="https://mupdf.com/downloads/archive/mupdf-1.27.0-source.tar.gz"
 )
 
 for name in "${@:-${!urls[@]}}" ; do

@@ -8,6 +8,17 @@
         return ret; \
     }
 
+#define WRAP_VOID(name, call, ...) \
+    int mp_##name(fz_context *ctx, ##__VA_ARGS__) { \
+        int ret; \
+        fz_try (ctx) { call; ret = 0; } \
+        fz_catch (ctx) { \
+            ret = -1; \
+        } \
+        return ret; \
+    }
+
+WRAP_VOID(register_document_handlers, fz_register_document_handlers(ctx))
 WRAP(open_document, fz_document*, NULL, fz_open_document(ctx, path), char *path)
 WRAP(open_document_with_stream, fz_document*, NULL, fz_open_document_with_stream(ctx, kind, stream), const char *kind, fz_stream *stream)
 WRAP(load_page, fz_page*, NULL, fz_load_page(ctx, doc, pageno), fz_document *doc, int pageno)

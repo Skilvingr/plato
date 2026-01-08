@@ -1,0 +1,23 @@
+[package]
+authors = ["Skilfingr <skilvingr@gmail.com>"]
+name = "kaesar"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+sim = []
+
+[[bin]]
+name = "kaesar"
+path = "src/main.rs"
+
+[dependencies]
+kaesar-core = { path = "../core" }
+
+# [profile.release-minsized]
+# inherits = "release"
+# panic = "abort"
+# codegen-units = 1
+# opt-level = "z"
+# lto = true
+# strip = true
